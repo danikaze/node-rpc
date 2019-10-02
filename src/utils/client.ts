@@ -1,6 +1,7 @@
 // tslint:disable: no-console
 import { Socket } from 'net';
 import { JsonTx } from './json-tx';
+import { HandShakeMsg, HandShakeAckMsg } from './msgs';
 
 export interface ClientOptions {
   /** Host the socket should connect to. (`'localhost'` by default) */
@@ -75,7 +76,11 @@ export class Client {
   }
 
   protected async handshake(): Promise<void> {
-    const handshake = await this.tx.waitData<{ id: string }>();
+    const handshake = await this.tx.waitData<HandShakeMsg>();
     this.id = handshake.id;
+    await this.tx.send<HandShakeAckMsg>({
+      type: 'HANDSHAKE_ACK',
+      id: this.id,
+    });
   }
 }
