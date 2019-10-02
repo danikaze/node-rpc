@@ -1,13 +1,26 @@
 // tslint:disable: no-console
 import { Socket } from 'net';
 import { JsonTx } from './json-tx';
-import { HandShakeMsg, HandShakeAckMsg } from './msgs';
+import {
+  HandShakeMsg,
+  HandShakeAckMsg,
+  MethodRequestMsg,
+  EndMsg,
+  ErrorNotImplementedMsg,
+  MethodResponseMsg,
+} from './msgs';
 
 export interface ClientOptions {
   /** Host the socket should connect to. (`'localhost'` by default) */
   host: string;
   /** Port the socket should connect to */
   port: number;
+  /** Path of the file to import */
+  file: string;
+}
+
+interface RpcMethods {
+  getTime: () => string;
 }
 
 export class Client {
@@ -16,12 +29,14 @@ export class Client {
   protected readonly socket: Socket;
   protected readonly tx: JsonTx;
   protected id: string;
+  protected rpcMethods: RpcMethods;
 
   constructor(options: ClientOptions) {
     this.port = options.port;
     this.host = options.host || 'localhost';
     this.socket = new Socket();
     this.tx = new JsonTx(this.socket);
+    this.rpcMethods = this.loadCode(options.file);
   }
 
   /**
@@ -54,6 +69,37 @@ export class Client {
   }
 
   /**
+   * Start the RPC method loop
+   * It waits for messages and returns the result, until an `EndMsg` is received
+   */
+  public async rpc(): Promise<void> {
+    for (;;) {
+      const msg = await this.tx.waitData<MethodRequestMsg | EndMsg>();
+
+      if (msg.type === 'END') {
+        return;
+      }
+
+      if (msg.type === 'METHOD_REQUEST') {
+        const method = this.rpcMethods[msg.method];
+        if (!method) {
+          this.tx.send<ErrorNotImplementedMsg>({
+            method,
+            type: 'ERROR_METHOD_NOT_IMPLEMENTED',
+          });
+          continue;
+        }
+
+        const result = 123; // method(...msg.params);
+        this.tx.send<MethodResponseMsg>({
+          result,
+          type: 'METHOD_RESULT',
+        });
+      }
+    }
+  }
+
+  /**
    * Send JSON data to the server
    */
   public async sendData<T = unknown>(data: T): Promise<void> {
@@ -82,5 +128,13 @@ export class Client {
       type: 'HANDSHAKE_ACK',
       id: this.id,
     });
+  }
+
+  protected loadCode(filePath: string): RpcMethods {
+    try {
+      return require('../rpc/client1.js');
+    } catch (e) {
+      console.error(e);
+    }
   }
 }

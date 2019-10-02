@@ -1,7 +1,14 @@
 // tslint:disable: no-console
 import { createServer, Socket, Server as NetServer } from 'net';
 import { JsonTx } from './json-tx';
-import { HandShakeMsg, HandShakeAckMsg } from './msgs';
+import {
+  HandShakeMsg,
+  HandShakeAckMsg,
+  EndMsg,
+  MethodRequestMsg,
+  MethodResponseMsg,
+  ErrorNotImplementedMsg,
+} from './msgs';
 
 export interface ServerOptions {
   /** Port where to listen */
@@ -10,6 +17,8 @@ export interface ServerOptions {
   host?: string;
   /** Maximum length of the queue of pending connections */
   backlog?: number;
+  /** Ms. to wait before a RPC method timeouts (`1000` by default) */
+  rpcTimeout?: number;
 }
 
 interface ClientData {
@@ -23,6 +32,7 @@ export class Server {
   protected readonly port: number;
   protected readonly host: string;
   protected readonly backlog: number;
+  protected readonly rpcTimeout: number;
   protected server: NetServer;
 
   /* client connections data */
@@ -33,6 +43,7 @@ export class Server {
     this.port = options.port;
     this.host = options.host || 'localhost';
     this.backlog = options.backlog;
+    this.rpcTimeout = options.rpcTimeout || 1000;
   }
 
   /**
@@ -86,11 +97,14 @@ export class Server {
     await this.handshake(clientData);
 
     // logic
-    socket.on('data', data => {
-      console.log(`[${clientId}] Received: ${data.toString()}`);
-      clientData.tx.send(`Bye connection [${clientId}]`);
-      clientData.tx.send(`Thanks connection [${clientId}]`);
-    });
+    try {
+      await this.callRpcMethod(clientData, 'getDate');
+      await this.callRpcMethod(clientData, 'add', [1, 2]);
+      await this.callRpcMethod(clientData, 'box', ['text']);
+    } catch (e) {
+      console.log('RPC method timeout: ', e);
+    }
+    await clientData.tx.send<EndMsg>({ type: 'END' });
   }
 
   protected async handleConnectionClose(client: ClientData, error?: Error) {
@@ -103,6 +117,10 @@ export class Server {
 
   protected handleClose(): void {
     console.log('Server closed');
+  }
+
+  protected generateClientId(): string {
+    return `${this.connectionNumber}:${String(Math.random()).substr(2)}`;
   }
 
   protected async handshake(client: ClientData): Promise<void> {
@@ -120,7 +138,35 @@ export class Server {
     console.log(`[${client.id}] ACK OK!`);
   }
 
-  protected generateClientId(): string {
-    return `${this.connectionNumber}:${String(Math.random()).substr(2)}`;
+  protected callRpcMethod<R>(client: ClientData, method: string, params?: unknown[]): Promise<R> {
+    return new Promise<R>(async (resolve, reject) => {
+      // request
+      await client.tx.send<MethodRequestMsg>({
+        method,
+        params,
+        type: 'METHOD_REQUEST',
+      });
+      console.log(`Request: ${method}(${(params || []).join(',')})`);
+
+      // response
+      let hasTimeout = false;
+      const rpcTimeoutHandler = setTimeout(() => {
+        hasTimeout = true;
+        reject('ERROR_RPC_TIMEOUT');
+      }, this.rpcTimeout);
+
+      const msg = await client.tx.waitData<MethodResponseMsg | ErrorNotImplementedMsg>();
+      clearTimeout(rpcTimeoutHandler);
+
+      if (msg.type === 'ERROR_METHOD_NOT_IMPLEMENTED') {
+        reject(msg.type);
+        return;
+      }
+
+      if (!hasTimeout) {
+        console.log(` Result:`, msg.result);
+        resolve(msg.result as R);
+      }
+    });
   }
 }
