@@ -7,7 +7,7 @@ async function run(): Promise<void> {
   const client = new Client({
     host: SERVER_HOST,
     port: SERVER_PORT,
-    file: 'rpc/client1',
+    file: 'client1',
   });
   await client.connect();
   await client.rpc();

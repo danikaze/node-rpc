@@ -1,4 +1,5 @@
 // tslint:disable: no-console
+import { join } from 'path';
 import { Socket } from 'net';
 import { JsonTx } from './json-tx';
 import {
@@ -12,7 +13,7 @@ import {
 
 export interface ClientOptions {
   /** Host the socket should connect to. (`'localhost'` by default) */
-  host: string;
+  host?: string;
   /** Port the socket should connect to */
   port: number;
   /** Path of the file to import */
@@ -90,7 +91,7 @@ export class Client {
           continue;
         }
 
-        const result = 123; // method(...msg.params);
+        const result = msg.params ? method(...msg.params) : method();
         this.tx.send<MethodResponseMsg>({
           result,
           type: 'METHOD_RESULT',
@@ -132,7 +133,7 @@ export class Client {
 
   protected loadCode(filePath: string): RpcMethods {
     try {
-      return require('../rpc/client1.js');
+      return __non_webpack_require__(join(RPC_FOLDER, filePath));
     } catch (e) {
       console.error(e);
     }
