@@ -14,7 +14,8 @@ module.exports = env => {
     devtool: isProd ? undefined : 'inline-source-map',
 
     entry: {
-      app: ['src/index.ts'],
+      server: ['src/server.ts'],
+      client: ['src/client.ts'],
     },
 
     output: {
