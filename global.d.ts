@@ -4,3 +4,4 @@ declare const SERVER_PORT: number;
 declare const RPC_FOLDER: string;
 
 declare const __non_webpack_require__: NodeRequireFunction;
+declare const __non_webpack_module__: NodeModule;

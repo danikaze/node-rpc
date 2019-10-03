@@ -1,5 +1,5 @@
 const { join } = require('path');
-const { DefinePlugin } = require('webpack');
+const { BannerPlugin, DefinePlugin } = require('webpack');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 
@@ -60,6 +60,10 @@ module.exports = env => {
           return c;
         })(),
         NODE_ENV: JSON.stringify(isProd ? 'production' : 'development'),
+      }),
+      new BannerPlugin({
+        raw: true,
+        banner: `const __non_webpack_module__ = module;`,
       }),
     ].concat(isProd ? [new CleanWebpackPlugin()] : []),
 
