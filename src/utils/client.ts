@@ -1,5 +1,4 @@
 // tslint:disable: no-console
-import { join } from 'path';
 import { Socket } from 'net';
 import { JsonTx } from './json-tx';
 import {
@@ -9,6 +8,7 @@ import {
   EndMsg,
   ErrorNotImplementedMsg,
   MethodResponseMsg,
+  MethodCollection,
 } from './msgs';
 
 export interface ClientOptions {
@@ -20,17 +20,13 @@ export interface ClientOptions {
   file: string;
 }
 
-interface RpcMethods {
-  getTime: () => string;
-}
-
-export class Client {
+export class Client<M extends MethodCollection> {
   protected readonly host: string;
   protected readonly port: number;
   protected readonly socket: Socket;
   protected readonly tx: JsonTx;
   protected id: string;
-  protected rpcMethods: RpcMethods;
+  protected rpcMethods: M;
 
   constructor(options: ClientOptions) {
     this.port = options.port;
@@ -75,7 +71,7 @@ export class Client {
    */
   public async rpc(): Promise<void> {
     for (;;) {
-      const msg = await this.tx.waitData<MethodRequestMsg | EndMsg>();
+      const msg = await this.tx.waitData<MethodRequestMsg<M> | EndMsg>();
 
       if (msg.type === 'END') {
         return;
@@ -84,8 +80,8 @@ export class Client {
       if (msg.type === 'METHOD_REQUEST') {
         const method = this.rpcMethods[msg.method];
         if (!method) {
-          this.tx.send<ErrorNotImplementedMsg>({
-            method,
+          this.tx.send<ErrorNotImplementedMsg<M>>({
+            method: msg.method,
             type: 'ERROR_METHOD_NOT_IMPLEMENTED',
           });
           continue;
@@ -131,9 +127,9 @@ export class Client {
     });
   }
 
-  protected loadCode(filePath: string): RpcMethods {
+  protected loadCode(filePath: string): M {
     try {
-      return __non_webpack_require__(join(RPC_FOLDER, filePath));
+      return __non_webpack_require__(`${RPC_FOLDER}${filePath}`);
     } catch (e) {
       console.error(e);
     }
