@@ -1,5 +1,4 @@
 // tslint:disable: no-console
-import { join } from 'path';
 import { Socket } from 'net';
 import { JsonTx } from './json-tx';
 import {
@@ -133,7 +132,7 @@ export class Client {
 
   protected loadCode(filePath: string): RpcMethods {
     try {
-      return __non_webpack_require__(join(RPC_FOLDER, filePath));
+      return __non_webpack_require__(`${RPC_FOLDER}${filePath}`);
     } catch (e) {
       console.error(e);
     }

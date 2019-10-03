@@ -1,4 +1,5 @@
-const { join } = require('path');
+const { readdirSync } = require('fs');
+const { join, extname } = require('path');
 const { BannerPlugin, DefinePlugin } = require('webpack');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
@@ -16,6 +17,7 @@ module.exports = env => {
     entry: {
       server: ['src/server.ts'],
       client: ['src/client.ts'],
+      ...generateRpcEntries('src/rpc', 'rpc'),
     },
 
     output: {
@@ -64,6 +66,7 @@ module.exports = env => {
       new BannerPlugin({
         raw: true,
         banner: `const __non_webpack_module__ = module;`,
+        include: 'rpc',
       }),
     ].concat(isProd ? [new CleanWebpackPlugin()] : []),
 
@@ -88,3 +91,24 @@ module.exports = env => {
     },
   };
 };
+
+function generateRpcEntries(entryFolder, bundlePrefix = '', filter = /\.[tj]s$/) {
+  const res = {};
+
+  readdirSync(entryFolder).forEach(file => {
+    if (filter && !filter.test(file)) {
+      return;
+    }
+
+    const fileName = join(entryFolder, file);
+    const bundleName = join(bundlePrefix, stripExtension(file));
+    res[bundleName] = fileName;
+  });
+
+  return res;
+}
+
+function stripExtension(file) {
+  const ext = extname(file);
+  return file.substring(0, file.length - ext.length);
+}
