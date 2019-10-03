@@ -8,6 +8,7 @@ import {
   MethodRequestMsg,
   MethodResponseMsg,
   ErrorNotImplementedMsg,
+  MethodCollection,
 } from './msgs';
 
 export interface ServerOptions {
@@ -21,13 +22,13 @@ export interface ServerOptions {
   rpcTimeout?: number;
 }
 
-interface ClientData {
+export interface ClientData {
   id: string;
   tx: JsonTx;
   socket: Socket;
 }
 
-export class Server {
+export abstract class Server<M extends MethodCollection> {
   /* server creation data */
   protected readonly port: number;
   protected readonly host: string;
@@ -78,6 +79,8 @@ export class Server {
     });
   }
 
+  protected abstract async logic(client: ClientData): Promise<void>;
+
   protected async handleConnection(socket: Socket): Promise<void> {
     ++this.connectionNumber;
 
@@ -95,15 +98,7 @@ export class Server {
     this.server.on('close', this.handleConnectionClose.bind(this, clientData));
 
     await this.handshake(clientData);
-
-    // logic
-    try {
-      await this.callRpcMethod(clientData, 'getDate');
-      await this.callRpcMethod(clientData, 'add', [1, 2]);
-      await this.callRpcMethod(clientData, 'box', ['text']);
-    } catch (e) {
-      console.log('RPC method timeout: ', e);
-    }
+    await this.logic(clientData);
     await clientData.tx.send<EndMsg>({ type: 'END' });
   }
 
@@ -138,10 +133,10 @@ export class Server {
     console.log(`[${client.id}] ACK OK!`);
   }
 
-  protected callRpcMethod<R>(client: ClientData, method: string, params?: unknown[]): Promise<R> {
+  protected callRpcMethod<R>(client: ClientData, method: keyof M, params?: unknown[]): Promise<R> {
     return new Promise<R>(async (resolve, reject) => {
       // request
-      await client.tx.send<MethodRequestMsg>({
+      await client.tx.send<MethodRequestMsg<M>>({
         method,
         params,
         type: 'METHOD_REQUEST',
@@ -155,7 +150,7 @@ export class Server {
         reject('ERROR_RPC_TIMEOUT');
       }, this.rpcTimeout);
 
-      const msg = await client.tx.waitData<MethodResponseMsg | ErrorNotImplementedMsg>();
+      const msg = await client.tx.waitData<MethodResponseMsg | ErrorNotImplementedMsg<M>>();
       clearTimeout(rpcTimeoutHandler);
 
       if (msg.type === 'ERROR_METHOD_NOT_IMPLEMENTED') {
