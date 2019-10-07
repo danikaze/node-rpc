@@ -29,16 +29,16 @@ export interface ClientData {
 }
 
 export abstract class Server<M extends MethodCollection> {
-  /* server creation data */
-  protected readonly port: number;
-  protected readonly host: string;
-  protected readonly backlog: number;
-  protected readonly rpcTimeout: number;
-  protected server: NetServer;
-
   /* client connections data */
   protected connectionNumber: number = 0;
   protected readonly connections: { [id: string]: ClientData } = {};
+
+  /* server creation data */
+  private readonly port: number;
+  private readonly host: string;
+  private readonly backlog: number;
+  private server: NetServer;
+  private readonly rpcTimeout: number;
 
   constructor(options: ServerOptions) {
     this.port = options.port;
@@ -79,62 +79,11 @@ export abstract class Server<M extends MethodCollection> {
     });
   }
 
-  protected abstract async logic(client: ClientData): Promise<void>;
-
-  protected async handleConnection(socket: Socket): Promise<void> {
-    ++this.connectionNumber;
-    const clientId = this.generateClientId();
-
-    logEvent('SERVER_CONNECTION_INCOMING', {
-      clientId,
-      address: socket.remoteAddress,
-      port: socket.remotePort,
-    });
-
-    const clientData = {
-      socket,
-      id: clientId,
-      tx: new JsonTx(socket),
-    };
-    this.connections[clientId] = clientData;
-    this.server.on('close', this.handleConnectionClose.bind(this, clientData));
-
-    await this.handshake(clientData);
-    await this.logic(clientData);
-    await clientData.tx.send<EndMsg>({ type: 'END' });
-  }
-
-  protected async handleConnectionClose(client: ClientData, error?: Error) {
-    logEvent('SERVER_CONNECTION_CLOSED', { error, clientId: client.id });
-  }
-
-  protected handleError(error: Error): void {
-    logEvent('SERVER_ERROR', { error });
-  }
-
-  protected handleClose(): void {
-    logEvent('SERVER_CLOSE');
-  }
-
-  protected generateClientId(): string {
-    return `${this.connectionNumber}:${String(Math.random()).substr(2)}`;
-  }
-
-  protected async handshake(client: ClientData): Promise<void> {
-    await client.tx.send<HandShakeMsg>({
-      type: 'HANDSHAKE',
-      id: client.id,
-    });
-    const ack = await client.tx.waitData<HandShakeAckMsg>();
-    if (ack.type !== 'HANDSHAKE_ACK' || ack.id !== client.id) {
-      client.socket.end(() => {
-        logEvent('SERVER_HANDSHAKE_ACK_ERROR', { clientId: client.id });
-      });
-      return;
-    }
-    logEvent('SERVER_HANDSHAKE_ACK_OK', { clientId: client.id });
-  }
-
+  /**
+   * Make a request for a method to one of the connected clients, and wait for its response
+   * It can fail on timeout, if the method is not implemented in the client, or if there's a
+   * runtime exception in the client implementation
+   */
   protected callRpcMethod<R>(client: ClientData, method: keyof M, params?: unknown[]): Promise<R> {
     return new Promise<R>(async (resolve, reject) => {
       // request
@@ -171,9 +120,82 @@ export abstract class Server<M extends MethodCollection> {
           method: method as string,
           clientId: client.id,
           result: msg.result,
+          timeout: hasTimeout,
         });
         resolve(msg.result as R);
       }
     });
+  }
+
+  /**
+   * Close the connection with a client
+   */
+  protected async closeClient(client: ClientData): Promise<void> {
+    return new Promise<void>(async resolve => {
+      await client.tx.send<EndMsg>({ type: 'END' });
+      client.socket.end(() => {
+        delete this.connections[client.id];
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * Method called when a new client connects to the server
+   * (to be overriden)
+   */
+  protected async onClientConnection(client: ClientData): Promise<void> {}
+
+  private async handleConnection(socket: Socket): Promise<void> {
+    ++this.connectionNumber;
+    const clientId = this.generateClientId();
+
+    logEvent('SERVER_CONNECTION_INCOMING', {
+      clientId,
+      address: socket.remoteAddress,
+      port: socket.remotePort,
+    });
+
+    const clientData = {
+      socket,
+      id: clientId,
+      tx: new JsonTx(socket),
+    };
+    this.connections[clientId] = clientData;
+    this.server.on('close', this.handleConnectionClose.bind(this, clientData));
+
+    await this.handshake(clientData);
+    await this.onClientConnection(clientData);
+  }
+
+  private async handleConnectionClose(client: ClientData, error?: Error) {
+    logEvent('SERVER_CONNECTION_CLOSED', { error, clientId: client.id });
+  }
+
+  private handleError(error: Error): void {
+    logEvent('SERVER_ERROR', { error });
+  }
+
+  private handleClose(): void {
+    logEvent('SERVER_CLOSE');
+  }
+
+  private async handshake(client: ClientData): Promise<void> {
+    await client.tx.send<HandShakeMsg>({
+      type: 'HANDSHAKE',
+      id: client.id,
+    });
+    const ack = await client.tx.waitData<HandShakeAckMsg>();
+    if (ack.type !== 'HANDSHAKE_ACK' || ack.id !== client.id) {
+      client.socket.end(() => {
+        logEvent('SERVER_HANDSHAKE_ACK_ERROR', { clientId: client.id });
+      });
+      return;
+    }
+    logEvent('SERVER_HANDSHAKE_ACK_OK', { clientId: client.id });
+  }
+
+  private generateClientId(): string {
+    return `${this.connectionNumber}:${String(Math.random()).substr(2)}`;
   }
 }

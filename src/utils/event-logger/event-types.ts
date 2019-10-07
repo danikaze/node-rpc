@@ -45,6 +45,7 @@ export interface EventData {
     clientId: string;
     method: string;
     result: unknown;
+    timeout: boolean;
   };
   SERVER_RPC_TIMEOUT: {
     clientId: string;
