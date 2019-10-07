@@ -1,9 +1,9 @@
-// tslint:disable: no-console
 import { Client } from './utils/client';
 import { ClientInterface } from './client-interface';
+import { logEvent } from './utils/event-logger';
 
 async function run(): Promise<void> {
-  console.log(`[${APP_VERSION}] Starting client`);
+  logEvent('CLIENT_START', { version: APP_VERSION });
 
   const client = new Client<ClientInterface>({
     host: SERVER_HOST,

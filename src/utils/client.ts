@@ -1,4 +1,3 @@
-// tslint:disable: no-console
 import { Socket } from 'net';
 import { JsonTx } from './json-tx';
 import {
@@ -10,6 +9,7 @@ import {
   MethodResponseMsg,
   MethodCollection,
 } from './msgs';
+import { logEvent } from './event-logger';
 
 export interface ClientOptions {
   /** Host the socket should connect to. (`'localhost'` by default) */
@@ -43,12 +43,12 @@ export class Client<M extends MethodCollection> {
     return new Promise<void>((resolve, reject) => {
       this.socket.once('connect', async () => {
         await this.handshake();
-        console.log(`Connected! (ID: ${this.id})`);
+        logEvent('CLIENT_CONNECTED', { clientId: this.id });
         resolve();
       });
 
       this.socket.once('error', error => {
-        console.log('Error', JSON.stringify(error));
+        logEvent('CLIENT_ERROR', { error });
         reject(error);
       });
 
@@ -100,7 +100,6 @@ export class Client<M extends MethodCollection> {
    * Send JSON data to the server
    */
   public async sendData<T = unknown>(data: T): Promise<void> {
-    console.log(`Sending: ${JSON.stringify(data)}`);
     await this.tx.send(data);
   }
 
@@ -129,9 +128,11 @@ export class Client<M extends MethodCollection> {
 
   protected loadCode(filePath: string): M {
     try {
-      return __non_webpack_require__(`${RPC_FOLDER}${filePath}`);
-    } catch (e) {
-      console.error(e);
+      const module = __non_webpack_require__(`${RPC_FOLDER}${filePath}`);
+      logEvent('CLIENT_CODE_LOAD', { path: filePath });
+      return module;
+    } catch (error) {
+      logEvent('CLIENT_CODE_LOAD_ERROR', { error, path: filePath });
     }
   }
 }
