@@ -81,18 +81,30 @@ export abstract class Server<M extends MethodCollection> {
 
   /**
    * Make a request for a method to one of the connected clients, and wait for its response
-   * It can fail on timeout, if the method is not implemented in the client, or if there's a
-   * runtime exception in the client implementation
+   * It can fail on:
+   * - wrong specified client
+   * - rpc call timeout
+   * - if the method is not implemented in the client
+   * - if there's a runtime exception in the client implementation
    */
-  protected callRpcMethod<R>(client: ClientData, method: keyof M, params?: unknown[]): Promise<R> {
+  protected callRpcMethod<R>(
+    client: string | ClientData,
+    method: keyof M,
+    params?: unknown[]
+  ): Promise<R> {
+    const clientData = this.getClient(client);
+    if (!clientData) {
+      return Promise.reject();
+    }
+
     return new Promise<R>(async (resolve, reject) => {
       // request
-      await client.tx.send<MethodRequestMsg<M>>({
+      await clientData.tx.send<MethodRequestMsg<M>>({
         method,
         params,
         type: 'METHOD_REQUEST',
       });
-      logEvent('SERVER_RPC_REQUEST', { params, method: method as string, clientId: client.id });
+      logEvent('SERVER_RPC_REQUEST', { params, method: method as string, clientId: clientData.id });
 
       // response
       let hasTimeout = false;
@@ -100,17 +112,20 @@ export abstract class Server<M extends MethodCollection> {
         hasTimeout = true;
         logEvent('SERVER_RPC_TIMEOUT', {
           method: method as string,
-          clientId: client.id,
+          clientId: clientData.id,
           time: this.rpcTimeout,
         });
         reject('ERROR_RPC_TIMEOUT');
       }, this.rpcTimeout);
 
-      const msg = await client.tx.waitData<MethodResponseMsg | ErrorNotImplementedMsg<M>>();
+      const msg = await clientData.tx.waitData<MethodResponseMsg | ErrorNotImplementedMsg<M>>();
       clearTimeout(rpcTimeoutHandler);
 
       if (msg.type === 'ERROR_METHOD_NOT_IMPLEMENTED') {
-        logEvent('SERVER_RPC_NOT_IMPLEMENTED', { method: method as string, clientId: client.id });
+        logEvent('SERVER_RPC_NOT_IMPLEMENTED', {
+          method: method as string,
+          clientId: clientData.id,
+        });
         reject(msg.type);
         return;
       }
@@ -118,7 +133,7 @@ export abstract class Server<M extends MethodCollection> {
       if (!hasTimeout) {
         logEvent('SERVER_RPC_RESPONSE', {
           method: method as string,
-          clientId: client.id,
+          clientId: clientData.id,
           result: msg.result,
           timeout: hasTimeout,
         });
@@ -129,12 +144,18 @@ export abstract class Server<M extends MethodCollection> {
 
   /**
    * Close the connection with a client
+   * If the specified client is not correct, the promise will be rejected
    */
-  protected async closeClient(client: ClientData): Promise<void> {
+  protected async closeClient(client: string | ClientData): Promise<void> {
+    const clientData = this.getClient(client);
+    if (!clientData) {
+      return Promise.reject();
+    }
+
     return new Promise<void>(async resolve => {
-      await client.tx.send<EndMsg>({ type: 'END' });
-      client.socket.end(() => {
-        delete this.connections[client.id];
+      await clientData.tx.send<EndMsg>({ type: 'END' });
+      clientData.socket.end(() => {
+        delete this.connections[clientData.id];
         resolve();
       });
     });
@@ -197,5 +218,12 @@ export abstract class Server<M extends MethodCollection> {
 
   private generateClientId(): string {
     return `${this.connectionNumber}:${String(Math.random()).substr(2)}`;
+  }
+
+  private getClient(client: ClientData | string): ClientData {
+    if (typeof client === 'string') {
+      return this.connections[client];
+    }
+    return this.connections[client.id];
   }
 }

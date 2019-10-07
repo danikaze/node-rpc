@@ -39,14 +39,14 @@ class GameServer extends Server<ClientInterface> {
   protected async endGame(): Promise<void> {
     Object.keys(this.connections).forEach(async clientId => {
       console.log(`Client ${clientId}: ${this.scores[clientId]} points`);
-      await this.closeClient(this.connections[clientId]);
+      await this.closeClient(clientId);
     });
   }
 
   protected async turn(): Promise<void> {
     const ids = Object.keys(this.connections);
-    this.scores[ids[0]] += await this.callRpcMethod<number>(this.connections[ids[0]], 'draw');
-    this.scores[ids[1]] += await this.callRpcMethod<number>(this.connections[ids[1]], 'draw');
+    this.scores[ids[0]] += await this.callRpcMethod<number>(ids[0], 'draw');
+    this.scores[ids[1]] += await this.callRpcMethod<number>(ids[1], 'draw');
   }
 }
 
