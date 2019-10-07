@@ -1,4 +1,3 @@
-// tslint:disable: no-console
 import { createServer, Socket, Server as NetServer } from 'net';
 import { JsonTx } from './json-tx';
 import {
@@ -10,6 +9,7 @@ import {
   ErrorNotImplementedMsg,
   MethodCollection,
 } from './msgs';
+import { logEvent } from './event-logger';
 
 export interface ServerOptions {
   /** Port where to listen */
@@ -60,7 +60,7 @@ export abstract class Server<M extends MethodCollection> {
       this.server.listen(this.port, this.host, this.backlog, () => {
         this.server.on('error', this.handleError.bind(this));
         this.server.on('close', this.handleClose);
-        console.log(`Server listening in port ${this.port}`);
+        logEvent('SERVER_READY', { host: this.host, port: this.port });
         resolve();
       });
     });
@@ -72,9 +72,9 @@ export abstract class Server<M extends MethodCollection> {
   public async stop(): Promise<void> {
     this.server.close(error => {
       if (error) {
-        console.log('Error stopping server', error);
+        logEvent('SERVER_STOP_ERROR', { error });
       } else {
-        console.log('Server stopped');
+        logEvent('SERVER_STOP');
       }
     });
   }
@@ -83,12 +83,14 @@ export abstract class Server<M extends MethodCollection> {
 
   protected async handleConnection(socket: Socket): Promise<void> {
     ++this.connectionNumber;
-
-    console.log(
-      `[${this.connectionNumber}] Connection received from ${socket.remoteAddress}:${socket.remotePort}`
-    );
-
     const clientId = this.generateClientId();
+
+    logEvent('SERVER_CONNECTION_INCOMING', {
+      clientId,
+      address: socket.remoteAddress,
+      port: socket.remotePort,
+    });
+
     const clientData = {
       socket,
       id: clientId,
@@ -103,15 +105,15 @@ export abstract class Server<M extends MethodCollection> {
   }
 
   protected async handleConnectionClose(client: ClientData, error?: Error) {
-    console.log(`[${client.id}] Connection closed (error: ${error})`);
+    logEvent('SERVER_CONNECTION_CLOSED', { error, clientId: client.id });
   }
 
   protected handleError(error: Error): void {
-    console.error('Error', error);
+    logEvent('SERVER_ERROR', { error });
   }
 
   protected handleClose(): void {
-    console.log('Server closed');
+    logEvent('SERVER_CLOSE');
   }
 
   protected generateClientId(): string {
@@ -126,11 +128,11 @@ export abstract class Server<M extends MethodCollection> {
     const ack = await client.tx.waitData<HandShakeAckMsg>();
     if (ack.type !== 'HANDSHAKE_ACK' || ack.id !== client.id) {
       client.socket.end(() => {
-        console.log(`[${client.id}] Wrong ACK`);
+        logEvent('SERVER_HANDSHAKE_ACK_ERROR', { clientId: client.id });
       });
       return;
     }
-    console.log(`[${client.id}] ACK OK!`);
+    logEvent('SERVER_HANDSHAKE_ACK_OK', { clientId: client.id });
   }
 
   protected callRpcMethod<R>(client: ClientData, method: keyof M, params?: unknown[]): Promise<R> {
@@ -141,12 +143,17 @@ export abstract class Server<M extends MethodCollection> {
         params,
         type: 'METHOD_REQUEST',
       });
-      console.log(`Request: ${method}(${(params || []).join(',')})`);
+      logEvent('SERVER_RPC_REQUEST', { params, method: method as string, clientId: client.id });
 
       // response
       let hasTimeout = false;
       const rpcTimeoutHandler = setTimeout(() => {
         hasTimeout = true;
+        logEvent('SERVER_RPC_TIMEOUT', {
+          method: method as string,
+          clientId: client.id,
+          time: this.rpcTimeout,
+        });
         reject('ERROR_RPC_TIMEOUT');
       }, this.rpcTimeout);
 
@@ -154,12 +161,17 @@ export abstract class Server<M extends MethodCollection> {
       clearTimeout(rpcTimeoutHandler);
 
       if (msg.type === 'ERROR_METHOD_NOT_IMPLEMENTED') {
+        logEvent('SERVER_RPC_NOT_IMPLEMENTED', { method: method as string, clientId: client.id });
         reject(msg.type);
         return;
       }
 
       if (!hasTimeout) {
-        console.log(` Result:`, msg.result);
+        logEvent('SERVER_RPC_RESPONSE', {
+          method: method as string,
+          clientId: client.id,
+          result: msg.result,
+        });
         resolve(msg.result as R);
       }
     });
