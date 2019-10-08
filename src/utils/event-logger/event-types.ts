@@ -74,4 +74,13 @@ export interface EventData {
     path: string;
     error: Error;
   };
+  CLIENT_RPC_REQUEST: {
+    method: string;
+    params?: unknown[];
+  };
+  CLIENT_RPC_RESPONSE: {
+    method: string;
+    result: unknown;
+  };
+  CLIENT_CLOSE: undefined;
 }

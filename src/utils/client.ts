@@ -61,6 +61,7 @@ export class Client<M extends MethodCollection> {
    */
   public async close(): Promise<void> {
     return new Promise<void>(resolve => {
+      logEvent('CLIENT_CLOSE');
       this.socket.end(resolve);
     });
   }
@@ -78,6 +79,7 @@ export class Client<M extends MethodCollection> {
       }
 
       if (msg.type === 'METHOD_REQUEST') {
+        logEvent('CLIENT_RPC_REQUEST', { method: msg.method as string, params: msg.params });
         const method = this.rpcMethods[msg.method];
         if (!method) {
           this.tx.send<ErrorNotImplementedMsg<M>>({
@@ -88,6 +90,7 @@ export class Client<M extends MethodCollection> {
         }
 
         const result = msg.params ? method(...msg.params) : method();
+        logEvent('CLIENT_RPC_RESPONSE', { result, method: msg.method as string });
         this.tx.send<MethodResponseMsg>({
           result,
           type: 'METHOD_RESULT',
