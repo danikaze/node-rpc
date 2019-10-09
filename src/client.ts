@@ -1,18 +1,16 @@
 import { Client } from './utils/client';
-import { ClientInterface } from './client-interface';
 import { logEvent } from './utils/event-logger';
 
 async function run(): Promise<void> {
   logEvent('CLIENT_START', { version: APP_VERSION });
 
-  const client = new Client<ClientInterface>({
+  const client = new Client({
     host: SERVER_HOST,
     port: SERVER_PORT,
-    file: 'client1',
+    file: 'draw',
   });
   await client.connect();
   await client.rpc();
-  await client.close();
 }
 
 run();
