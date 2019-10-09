@@ -167,6 +167,12 @@ export abstract class Server<M extends MethodCollection> {
    */
   protected async onClientConnection(client: ClientData): Promise<void> {}
 
+  /**
+   * Method called when a client disconnects from the server
+   * (to be overriden)
+   */
+  protected async onClientDisconnection(client: ClientData, error?: Error): Promise<void> {}
+
   private async handleConnection(socket: Socket): Promise<void> {
     ++this.connectionNumber;
     const clientId = this.generateClientId();
@@ -183,7 +189,7 @@ export abstract class Server<M extends MethodCollection> {
       tx: new JsonTx(socket),
     };
     this.connections[clientId] = clientData;
-    this.server.on('close', this.handleConnectionClose.bind(this, clientData));
+    socket.on('close', this.handleConnectionClose.bind(this, clientData));
 
     await this.handshake(clientData);
     await this.onClientConnection(clientData);
@@ -191,6 +197,7 @@ export abstract class Server<M extends MethodCollection> {
 
   private async handleConnectionClose(client: ClientData, error?: Error) {
     logEvent('SERVER_CONNECTION_CLOSED', { error, clientId: client.id });
+    this.onClientDisconnection(client, error);
   }
 
   private handleError(error: Error): void {
