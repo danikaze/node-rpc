@@ -47,6 +47,9 @@ export function logEvent(
   type: 'CLIENT_CODE_LOAD_ERROR',
   data: EventData['CLIENT_CODE_LOAD_ERROR']
 ): void;
+export function logEvent(type: 'CLIENT_RPC_REQUEST', data: EventData['CLIENT_RPC_REQUEST']): void;
+export function logEvent(type: 'CLIENT_RPC_RESPONSE', data: EventData['CLIENT_RPC_RESPONSE']): void;
+export function logEvent(type: 'CLIENT_CLOSE'): void;
 export function logEvent(type: EventType, data?: EventData[EventType]): void {
   instance.add(type, data);
 }

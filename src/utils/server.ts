@@ -29,16 +29,16 @@ export interface ClientData {
 }
 
 export abstract class Server<M extends MethodCollection> {
-  /* server creation data */
-  protected readonly port: number;
-  protected readonly host: string;
-  protected readonly backlog: number;
-  protected readonly rpcTimeout: number;
-  protected server: NetServer;
-
   /* client connections data */
   protected connectionNumber: number = 0;
   protected readonly connections: { [id: string]: ClientData } = {};
+
+  /* server creation data */
+  private readonly port: number;
+  private readonly host: string;
+  private readonly backlog: number;
+  private server: NetServer;
+  private readonly rpcTimeout: number;
 
   constructor(options: ServerOptions) {
     this.port = options.port;
@@ -79,9 +79,101 @@ export abstract class Server<M extends MethodCollection> {
     });
   }
 
-  protected abstract async logic(client: ClientData): Promise<void>;
+  /**
+   * Make a request for a method to one of the connected clients, and wait for its response
+   * It can fail on:
+   * - wrong specified client
+   * - rpc call timeout
+   * - if the method is not implemented in the client
+   * - if there's a runtime exception in the client implementation
+   */
+  protected callRpcMethod<R>(
+    client: string | ClientData,
+    method: keyof M,
+    params?: unknown[]
+  ): Promise<R> {
+    const clientData = this.getClient(client);
+    if (!clientData) {
+      return Promise.reject();
+    }
 
-  protected async handleConnection(socket: Socket): Promise<void> {
+    return new Promise<R>(async (resolve, reject) => {
+      // request
+      await clientData.tx.send<MethodRequestMsg<M>>({
+        method,
+        params,
+        type: 'METHOD_REQUEST',
+      });
+      logEvent('SERVER_RPC_REQUEST', { params, method: method as string, clientId: clientData.id });
+
+      // response
+      let hasTimeout = false;
+      const rpcTimeoutHandler = setTimeout(() => {
+        hasTimeout = true;
+        logEvent('SERVER_RPC_TIMEOUT', {
+          method: method as string,
+          clientId: clientData.id,
+          time: this.rpcTimeout,
+        });
+        reject('ERROR_RPC_TIMEOUT');
+      }, this.rpcTimeout);
+
+      const msg = await clientData.tx.waitData<MethodResponseMsg | ErrorNotImplementedMsg<M>>();
+      clearTimeout(rpcTimeoutHandler);
+
+      if (msg.type === 'ERROR_METHOD_NOT_IMPLEMENTED') {
+        logEvent('SERVER_RPC_NOT_IMPLEMENTED', {
+          method: method as string,
+          clientId: clientData.id,
+        });
+        reject(msg.type);
+        return;
+      }
+
+      if (!hasTimeout) {
+        logEvent('SERVER_RPC_RESPONSE', {
+          method: method as string,
+          clientId: clientData.id,
+          result: msg.result,
+          timeout: hasTimeout,
+        });
+        resolve(msg.result as R);
+      }
+    });
+  }
+
+  /**
+   * Close the connection with a client
+   * If the specified client is not correct, the promise will be rejected
+   */
+  protected async closeClient(client: string | ClientData): Promise<void> {
+    const clientData = this.getClient(client);
+    if (!clientData) {
+      return Promise.reject();
+    }
+
+    return new Promise<void>(async resolve => {
+      await clientData.tx.send<EndMsg>({ type: 'END' });
+      clientData.socket.end(() => {
+        delete this.connections[clientData.id];
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * Method called when a new client connects to the server
+   * (to be overriden)
+   */
+  protected async onClientConnection(client: ClientData): Promise<void> {}
+
+  /**
+   * Method called when a client disconnects from the server
+   * (to be overriden)
+   */
+  protected async onClientDisconnection(client: ClientData, error?: Error): Promise<void> {}
+
+  private async handleConnection(socket: Socket): Promise<void> {
     ++this.connectionNumber;
     const clientId = this.generateClientId();
 
@@ -97,30 +189,26 @@ export abstract class Server<M extends MethodCollection> {
       tx: new JsonTx(socket),
     };
     this.connections[clientId] = clientData;
-    this.server.on('close', this.handleConnectionClose.bind(this, clientData));
+    socket.on('close', this.handleConnectionClose.bind(this, clientData));
 
     await this.handshake(clientData);
-    await this.logic(clientData);
-    await clientData.tx.send<EndMsg>({ type: 'END' });
+    await this.onClientConnection(clientData);
   }
 
-  protected async handleConnectionClose(client: ClientData, error?: Error) {
+  private async handleConnectionClose(client: ClientData, error?: Error) {
     logEvent('SERVER_CONNECTION_CLOSED', { error, clientId: client.id });
+    this.onClientDisconnection(client, error);
   }
 
-  protected handleError(error: Error): void {
+  private handleError(error: Error): void {
     logEvent('SERVER_ERROR', { error });
   }
 
-  protected handleClose(): void {
+  private handleClose(): void {
     logEvent('SERVER_CLOSE');
   }
 
-  protected generateClientId(): string {
-    return `${this.connectionNumber}:${String(Math.random()).substr(2)}`;
-  }
-
-  protected async handshake(client: ClientData): Promise<void> {
+  private async handshake(client: ClientData): Promise<void> {
     await client.tx.send<HandShakeMsg>({
       type: 'HANDSHAKE',
       id: client.id,
@@ -135,45 +223,14 @@ export abstract class Server<M extends MethodCollection> {
     logEvent('SERVER_HANDSHAKE_ACK_OK', { clientId: client.id });
   }
 
-  protected callRpcMethod<R>(client: ClientData, method: keyof M, params?: unknown[]): Promise<R> {
-    return new Promise<R>(async (resolve, reject) => {
-      // request
-      await client.tx.send<MethodRequestMsg<M>>({
-        method,
-        params,
-        type: 'METHOD_REQUEST',
-      });
-      logEvent('SERVER_RPC_REQUEST', { params, method: method as string, clientId: client.id });
+  private generateClientId(): string {
+    return `${this.connectionNumber}:${String(Math.random()).substr(2)}`;
+  }
 
-      // response
-      let hasTimeout = false;
-      const rpcTimeoutHandler = setTimeout(() => {
-        hasTimeout = true;
-        logEvent('SERVER_RPC_TIMEOUT', {
-          method: method as string,
-          clientId: client.id,
-          time: this.rpcTimeout,
-        });
-        reject('ERROR_RPC_TIMEOUT');
-      }, this.rpcTimeout);
-
-      const msg = await client.tx.waitData<MethodResponseMsg | ErrorNotImplementedMsg<M>>();
-      clearTimeout(rpcTimeoutHandler);
-
-      if (msg.type === 'ERROR_METHOD_NOT_IMPLEMENTED') {
-        logEvent('SERVER_RPC_NOT_IMPLEMENTED', { method: method as string, clientId: client.id });
-        reject(msg.type);
-        return;
-      }
-
-      if (!hasTimeout) {
-        logEvent('SERVER_RPC_RESPONSE', {
-          method: method as string,
-          clientId: client.id,
-          result: msg.result,
-        });
-        resolve(msg.result as R);
-      }
-    });
+  private getClient(client: ClientData | string): ClientData {
+    if (typeof client === 'string') {
+      return this.connections[client];
+    }
+    return this.connections[client.id];
   }
 }
