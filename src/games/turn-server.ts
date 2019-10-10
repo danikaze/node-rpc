@@ -4,21 +4,33 @@ import { Server, ServerOptions, ClientData } from '../utils/server';
 
 export interface TurnBasedGameServerOptions extends ServerOptions {
   nPlayersRequired: number;
+  errorsBeforeKick?: number;
+}
+
+interface TurnBasedGamePlayerData {
+  errors: number;
 }
 
 export abstract class TurnBasedGameServer<IF extends MethodCollection> extends Server<IF> {
+  public static defaultOptions: Partial<TurnBasedGameServerOptions> = {
+    errorsBeforeKick: 3,
+  };
   protected readonly playerIds: string[] = [];
   private readonly nPlayersRequired: number;
+  private readonly errorsBeforeKick: number;
+  private readonly playerData: { [clientId: string]: TurnBasedGamePlayerData } = {};
   private currentPlayerIndex: number = -1;
 
   constructor(options: TurnBasedGameServerOptions) {
     super(options);
     this.nPlayersRequired = options.nPlayersRequired;
+    this.errorsBeforeKick =
+      options.errorsBeforeKick || TurnBasedGameServer.defaultOptions.errorsBeforeKick;
   }
 
   /**
    * Method called when a new client connects to the server
-   * (requires a `super` call if overriden)
+   * (requires a `super.onClientConnection` call if overriden)
    */
   protected async onClientConnection(client: ClientData): Promise<void> {
     this.playerIds.push(client.id);
@@ -34,7 +46,7 @@ export abstract class TurnBasedGameServer<IF extends MethodCollection> extends S
 
   /**
    * Method called when a client disconnects from the server
-   * (requires a `super` call if overriden)
+   * (requires a `super.onClientDisconnection` call if overriden)
    */
   protected async onClientDisconnection(client: ClientData): Promise<void> {
     const index = this.playerIds.indexOf(client.id);
@@ -81,12 +93,28 @@ export abstract class TurnBasedGameServer<IF extends MethodCollection> extends S
   protected async endGame(): Promise<void> {}
 
   /**
+   * Close the client as originally done by `Server` class, but clean things done by this class
+   * (requires a `super.closeClient` call if overriden)
+   */
+  protected async closeClient(client: string | ClientData): Promise<void> {
+    const clientId = typeof client === 'string' ? client : client.id;
+    const idIndex = this.playerIds.indexOf(clientId);
+    if (idIndex !== -1) {
+      this.playerIds.splice(idIndex, 1);
+    }
+    await super.closeClient(client);
+  }
+
+  /**
    * Internal code to initialize the game before the main loop,
    * after all players have been connected.
    */
   private async initGame(): Promise<void> {
     const clientIds = Object.keys(this.connections);
     clientIds.forEach(async clientId => {
+      this.playerData[clientId] = {
+        errors: 0,
+      };
       await this.initPlayer(this.connections[clientId]);
     });
     await this.startGame();
@@ -98,8 +126,21 @@ export abstract class TurnBasedGameServer<IF extends MethodCollection> extends S
   private async gameLoop(): Promise<void> {
     while (!this.hasGameEnded()) {
       const player = this.chooseNext();
-      await this.playerAction(player);
+      try {
+        await this.playerAction(player);
+      } catch (error) {
+        this.clientError(player, error);
+      }
     }
+  }
+
+  private async clientError(client: ClientData, error: Error): Promise<void> {
+    this.playerData[client.id].errors++;
+    console.log('Turn error', this.playerData[client.id].errors, error);
+    if (this.errorsBeforeKick <= 0 || this.playerData[client.id].errors < this.errorsBeforeKick) {
+      return;
+    }
+    await this.closeClient(client);
   }
 
   /**
@@ -109,7 +150,8 @@ export abstract class TurnBasedGameServer<IF extends MethodCollection> extends S
   private async closeGame(): Promise<void> {
     await this.endGame();
 
-    this.playerIds.forEach(async clientId => {
+    [...this.playerIds].forEach(async clientId => {
+      console.log('Disconnecting client', clientId);
       await this.closeClient(clientId);
     });
   }

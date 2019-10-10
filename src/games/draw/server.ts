@@ -14,11 +14,15 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
     super({
       ...options,
       nPlayersRequired: 2,
+      errorsBeforeKick: 2,
     });
   }
 
   protected hasGameEnded(): boolean {
-    return this.turnNumber === DrawGameServer.gameTurns * DrawGameServer.nPlayersRequired;
+    return (
+      this.playerIds.length < 2 ||
+      this.turnNumber === DrawGameServer.gameTurns * DrawGameServer.nPlayersRequired
+    );
   }
 
   protected initPlayer(client: ClientData): Promise<void> {
