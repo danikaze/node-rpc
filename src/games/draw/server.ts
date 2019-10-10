@@ -8,7 +8,7 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
   private static readonly maxDraw: number = 100;
 
   private readonly scores: { [clientId: string]: number } = {};
-  private turnNumber: number = 0;
+  private turnNumber: number;
 
   constructor(options: ServerOptions) {
     super({
@@ -16,6 +16,10 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
       nPlayersRequired: 2,
       errorsBeforeKick: 2,
     });
+  }
+
+  protected async startGame(): Promise<void> {
+    this.turnNumber = 0;
   }
 
   protected hasGameEnded(): boolean {
