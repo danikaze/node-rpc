@@ -146,6 +146,18 @@ export abstract class Server<M extends MethodCollection> {
 
       if (!hasTimeout) {
         const time = new Date().getTime() - startTime;
+
+        const valid = this.rpcDataValidation(method, msg.result);
+        if (!valid) {
+          logEvent('SERVER_RPC_RUNTIME_VALIDATION_ERROR', {
+            method: method as string,
+            clientId: clientData.id,
+            data: msg.result,
+          });
+          reject('SERVER_RPC_RUNTIME_VALIDATION_ERROR');
+          return;
+        }
+
         logEvent('SERVER_RPC_RESPONSE', {
           time,
           method: method as string,
@@ -175,6 +187,14 @@ export abstract class Server<M extends MethodCollection> {
         resolve();
       });
     });
+  }
+
+  /**
+   * This function will be called in each `callRpcMethod` with the data result to allow runtime validation.
+   * If it returns `false`, it will trigger an error
+   */
+  protected rpcDataValidation(call: keyof M, response: unknown): boolean {
+    return true;
   }
 
   /**

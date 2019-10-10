@@ -51,4 +51,11 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
 
     return Promise.resolve();
   }
+
+  protected rpcDataValidation(method: keyof MethodInterface, data: unknown): boolean {
+    if (typeof data !== 'number') return false;
+    if (data < 0 || data > DrawGameServer.maxDraw) return false;
+
+    return true;
+  }
 }

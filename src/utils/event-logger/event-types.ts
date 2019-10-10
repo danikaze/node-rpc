@@ -62,6 +62,11 @@ export interface EventData {
     method: string;
     error: string;
   };
+  SERVER_RPC_RUNTIME_VALIDATION_ERROR: {
+    clientId: string;
+    method: string;
+    data: unknown;
+  };
 
   // client events
   CLIENT_START: {

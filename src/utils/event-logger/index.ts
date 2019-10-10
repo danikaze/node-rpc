@@ -43,6 +43,10 @@ export function logEvent(
   type: 'SERVER_RPC_EXCEPTION',
   data: EventData['SERVER_RPC_EXCEPTION']
 ): void;
+export function logEvent(
+  type: 'SERVER_RPC_RUNTIME_VALIDATION_ERROR',
+  data: EventData['SERVER_RPC_RUNTIME_VALIDATION_ERROR']
+): void;
 export function logEvent(type: 'CLIENT_START', data: EventData['CLIENT_START']): void;
 export function logEvent(type: 'CLIENT_CONNECTED', data: EventData['CLIENT_CONNECTED']): void;
 export function logEvent(type: 'CLIENT_ERROR', data: EventData['CLIENT_ERROR']): void;
