@@ -39,6 +39,10 @@ export function logEvent(
   type: 'SERVER_RPC_NOT_IMPLEMENTED',
   data: EventData['SERVER_RPC_NOT_IMPLEMENTED']
 ): void;
+export function logEvent(
+  type: 'SERVER_RPC_EXCEPTION',
+  data: EventData['SERVER_RPC_EXCEPTION']
+): void;
 export function logEvent(type: 'CLIENT_START', data: EventData['CLIENT_START']): void;
 export function logEvent(type: 'CLIENT_CONNECTED', data: EventData['CLIENT_CONNECTED']): void;
 export function logEvent(type: 'CLIENT_ERROR', data: EventData['CLIENT_ERROR']): void;
@@ -49,6 +53,10 @@ export function logEvent(
 ): void;
 export function logEvent(type: 'CLIENT_RPC_REQUEST', data: EventData['CLIENT_RPC_REQUEST']): void;
 export function logEvent(type: 'CLIENT_RPC_RESPONSE', data: EventData['CLIENT_RPC_RESPONSE']): void;
+export function logEvent(
+  type: 'CLIENT_RPC_EXCEPTION',
+  data: EventData['CLIENT_RPC_EXCEPTION']
+): void;
 export function logEvent(type: 'CLIENT_CLOSE'): void;
 export function logEvent(type: EventType, data?: EventData[EventType]): void {
   instance.add(type, data);

@@ -44,6 +44,7 @@ export interface EventData {
   SERVER_RPC_RESPONSE: {
     clientId: string;
     method: string;
+    time: number;
     result: unknown;
     timeout: boolean;
   };
@@ -55,6 +56,11 @@ export interface EventData {
   SERVER_RPC_NOT_IMPLEMENTED: {
     clientId: string;
     method: string;
+  };
+  SERVER_RPC_EXCEPTION: {
+    clientId: string;
+    method: string;
+    error: string;
   };
 
   // client events
@@ -81,6 +87,10 @@ export interface EventData {
   CLIENT_RPC_RESPONSE: {
     method: string;
     result: unknown;
+  };
+  CLIENT_RPC_EXCEPTION: {
+    method: string;
+    error: Error;
   };
   CLIENT_CLOSE: undefined;
 }
