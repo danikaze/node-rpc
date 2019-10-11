@@ -8,6 +8,7 @@ import {
   ErrorNotImplementedMsg,
   MethodResponseMsg,
   MethodCollection,
+  ErrorExceptionMsg,
 } from './msgs';
 import { logEvent } from './event-logger';
 
@@ -89,12 +90,21 @@ export class Client<M extends MethodCollection> {
           continue;
         }
 
-        const result = msg.params ? method(...msg.params) : method();
-        logEvent('CLIENT_RPC_RESPONSE', { result, method: msg.method as string });
-        this.tx.send<MethodResponseMsg>({
-          result,
-          type: 'METHOD_RESULT',
-        });
+        try {
+          const result = msg.params ? method(...msg.params) : method();
+          logEvent('CLIENT_RPC_RESPONSE', { result, method: msg.method as string });
+          this.tx.send<MethodResponseMsg>({
+            result,
+            type: 'METHOD_RESULT',
+          });
+        } catch (error) {
+          logEvent('CLIENT_RPC_EXCEPTION', { error, method: msg.method as string });
+          this.tx.send<ErrorExceptionMsg<M>>({
+            error: error.toString(),
+            method: msg.method,
+            type: 'ERROR_METHOD_EXCEPTION',
+          });
+        }
       }
     }
   }

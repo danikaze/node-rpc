@@ -22,6 +22,7 @@ export interface EndMsg extends ClientServerMsg {
 export interface MethodRequestMsg<M extends MethodCollection> extends ClientServerMsg {
   type: 'METHOD_REQUEST';
   method: keyof M;
+  timeout: number;
   params?: unknown[];
 }
 
@@ -33,4 +34,10 @@ export interface MethodResponseMsg extends ClientServerMsg {
 export interface ErrorNotImplementedMsg<M extends MethodCollection> extends ClientServerMsg {
   type: 'ERROR_METHOD_NOT_IMPLEMENTED';
   method: keyof M;
+}
+
+export interface ErrorExceptionMsg<M extends MethodCollection> extends ClientServerMsg {
+  type: 'ERROR_METHOD_EXCEPTION';
+  method: keyof M;
+  error: string;
 }

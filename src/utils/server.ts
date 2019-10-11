@@ -8,6 +8,7 @@ import {
   MethodResponseMsg,
   ErrorNotImplementedMsg,
   MethodCollection,
+  ErrorExceptionMsg,
 } from './msgs';
 import { logEvent } from './event-logger';
 
@@ -103,7 +104,9 @@ export abstract class Server<M extends MethodCollection> {
         method,
         params,
         type: 'METHOD_REQUEST',
+        timeout: this.rpcTimeout,
       });
+      const startTime = new Date().getTime();
       logEvent('SERVER_RPC_REQUEST', { params, method: method as string, clientId: clientData.id });
 
       // response
@@ -118,7 +121,8 @@ export abstract class Server<M extends MethodCollection> {
         reject('ERROR_RPC_TIMEOUT');
       }, this.rpcTimeout);
 
-      const msg = await clientData.tx.waitData<MethodResponseMsg | ErrorNotImplementedMsg<M>>();
+      type ExpectedMsg = MethodResponseMsg | ErrorNotImplementedMsg<M> | ErrorExceptionMsg<M>;
+      const msg = await clientData.tx.waitData<ExpectedMsg>();
       clearTimeout(rpcTimeoutHandler);
 
       if (msg.type === 'ERROR_METHOD_NOT_IMPLEMENTED') {
@@ -130,8 +134,32 @@ export abstract class Server<M extends MethodCollection> {
         return;
       }
 
+      if (msg.type === 'ERROR_METHOD_EXCEPTION') {
+        logEvent('SERVER_RPC_EXCEPTION', {
+          method: method as string,
+          clientId: clientData.id,
+          error: msg.error,
+        });
+        reject(msg.type);
+        return;
+      }
+
       if (!hasTimeout) {
+        const time = new Date().getTime() - startTime;
+
+        const valid = this.rpcDataValidation(method, msg.result);
+        if (!valid) {
+          logEvent('SERVER_RPC_RUNTIME_VALIDATION_ERROR', {
+            method: method as string,
+            clientId: clientData.id,
+            data: msg.result,
+          });
+          reject('SERVER_RPC_RUNTIME_VALIDATION_ERROR');
+          return;
+        }
+
         logEvent('SERVER_RPC_RESPONSE', {
+          time,
           method: method as string,
           clientId: clientData.id,
           result: msg.result,
@@ -159,6 +187,14 @@ export abstract class Server<M extends MethodCollection> {
         resolve();
       });
     });
+  }
+
+  /**
+   * This function will be called in each `callRpcMethod` with the data result to allow runtime validation.
+   * If it returns `false`, it will trigger an error
+   */
+  protected rpcDataValidation(call: keyof M, response: unknown): boolean {
+    return true;
   }
 
   /**

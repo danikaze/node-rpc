@@ -8,17 +8,25 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
   private static readonly maxDraw: number = 100;
 
   private readonly scores: { [clientId: string]: number } = {};
-  private turnNumber: number = 0;
+  private turnNumber: number;
 
   constructor(options: ServerOptions) {
     super({
       ...options,
       nPlayersRequired: 2,
+      errorsBeforeKick: 2,
     });
   }
 
+  protected async startGame(): Promise<void> {
+    this.turnNumber = 0;
+  }
+
   protected hasGameEnded(): boolean {
-    return this.turnNumber === DrawGameServer.gameTurns * DrawGameServer.nPlayersRequired;
+    return (
+      this.playerIds.length < 2 ||
+      this.turnNumber === DrawGameServer.gameTurns * DrawGameServer.nPlayersRequired
+    );
   }
 
   protected initPlayer(client: ClientData): Promise<void> {
@@ -42,5 +50,12 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
     console.log('********************');
 
     return Promise.resolve();
+  }
+
+  protected rpcDataValidation(method: keyof MethodInterface, data: unknown): boolean {
+    if (typeof data !== 'number') return false;
+    if (data < 0 || data > DrawGameServer.maxDraw) return false;
+
+    return true;
   }
 }
