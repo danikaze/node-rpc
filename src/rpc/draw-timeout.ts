@@ -1,5 +1,9 @@
 import { MethodInterface } from '../games/draw/method-interface';
 
+/*
+ * Faulty implementation of the client for the Draw game
+ * It returns the result after the timeout limit
+ */
 const implementation: MethodInterface = {
   draw: max => {
     const waitFor = 2000; // 5 s
