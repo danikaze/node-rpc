@@ -48,6 +48,7 @@
     "webpack-cli": "^3.3.9"
   },
   "dependencies": {
-    "vanilla-type-check": "^2.0.3"
+    "vanilla-type-check": "^2.0.3",
+    "vm2": "^3.8.4"
   }
 }

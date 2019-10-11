@@ -1,4 +1,5 @@
 import { Socket } from 'net';
+import { VM } from 'vm2';
 import { JsonTx } from './json-tx';
 import {
   HandShakeMsg,
