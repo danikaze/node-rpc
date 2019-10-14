@@ -19,4 +19,6 @@ export interface TurnBasedGameEvents extends Events {
     path: string;
     error: string;
   };
+  SERVER_GAME_START: undefined;
+  SERVER_GAME_END: undefined;
 }

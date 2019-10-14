@@ -185,6 +185,7 @@ export abstract class TurnBasedGameServer<
       });
       await this.initPlayer(playerData);
     });
+    this.eventLogger.add('SERVER_GAME_START', undefined);
     await this.startGame();
   }
 
@@ -222,6 +223,7 @@ export abstract class TurnBasedGameServer<
    */
   private async closeGame(): Promise<void> {
     await this.endGame();
+    this.eventLogger.add('SERVER_GAME_END', undefined);
 
     // start dumping the game log while closing clients at the same time
     const promises: Promise<void>[] = [];

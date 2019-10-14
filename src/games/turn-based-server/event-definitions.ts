@@ -35,4 +35,12 @@ export const turnBasedEventDefinitions: Partial<BasicEventDefinition<TurnBasedGa
       `Error while dumping game log into ${path}`,
     ],
   },
+  SERVER_GAME_START: {
+    level: 'info',
+    msg: () => ['Game starts'],
+  },
+  SERVER_GAME_END: {
+    level: 'info',
+    msg: () => ['Game ended'],
+  },
 };
