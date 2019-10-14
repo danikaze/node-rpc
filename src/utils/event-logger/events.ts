@@ -64,6 +64,9 @@ export interface Events {
     method: string;
     data: unknown;
   };
+  SERVER_CLIENT_END: {
+    clientId: string;
+  };
 
   // client events
   CLIENT_START: {

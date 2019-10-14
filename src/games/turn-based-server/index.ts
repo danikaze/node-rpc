@@ -1,9 +1,12 @@
 // tslint:disable: no-console
-import { MethodCollection } from '../utils/msgs';
-import { Server, ServerOptions, ClientData } from '../utils/server';
-import { Events } from '../utils/event-logger/events';
+import { MethodCollection } from '../../utils/msgs';
+import { Server, ServerOptions, ClientData } from '../../utils/server';
+import { EventLogger } from '../../utils/event-logger';
+import { TurnBasedGameEvents } from './events';
+import { getTurnBasedGameEventLogger } from './event-logger';
 
-export interface TurnBasedGameServerOptions extends ServerOptions<Events> {
+export interface TurnBasedGameServerOptions<E extends TurnBasedGameEvents>
+  extends ServerOptions<E> {
   nPlayersRequired: number;
   errorsBeforeKick?: number;
 }
@@ -12,8 +15,11 @@ interface TurnBasedGamePlayerData {
   errors: number;
 }
 
-export abstract class TurnBasedGameServer<IF extends MethodCollection> extends Server<IF> {
-  public static defaultOptions: Partial<TurnBasedGameServerOptions> = {
+export abstract class TurnBasedGameServer<
+  IF extends MethodCollection,
+  E extends TurnBasedGameEvents = TurnBasedGameEvents
+> extends Server<IF, E> {
+  public static defaultOptions = {
     errorsBeforeKick: 3,
   };
   protected readonly playerIds: string[] = [];
@@ -22,8 +28,11 @@ export abstract class TurnBasedGameServer<IF extends MethodCollection> extends S
   private readonly playerData: { [clientId: string]: TurnBasedGamePlayerData } = {};
   private currentPlayerIndex: number = -1;
 
-  constructor(options: TurnBasedGameServerOptions) {
-    super(options);
+  constructor(options: TurnBasedGameServerOptions<E>) {
+    super({
+      eventLogger: (options.eventLogger || getTurnBasedGameEventLogger()) as EventLogger<E>,
+      ...options,
+    });
     this.nPlayersRequired = options.nPlayersRequired;
     this.errorsBeforeKick =
       options.errorsBeforeKick || TurnBasedGameServer.defaultOptions.errorsBeforeKick;
@@ -36,7 +45,12 @@ export abstract class TurnBasedGameServer<IF extends MethodCollection> extends S
   protected async onClientConnection(client: ClientData): Promise<void> {
     this.playerIds.push(client.id);
     const nPlayers = this.playerIds.length;
-    console.log(`Connected player ${nPlayers}/${this.nPlayersRequired}`);
+
+    this.eventLogger.add('SERVER_PLAYER_CONNECTED', {
+      clientId: client.id,
+      playerN: nPlayers,
+      playersRequired: this.nPlayersRequired,
+    });
 
     if (nPlayers === this.nPlayersRequired) {
       await this.initGame();
@@ -137,7 +151,12 @@ export abstract class TurnBasedGameServer<IF extends MethodCollection> extends S
 
   private async clientError(client: ClientData, error: Error): Promise<void> {
     this.playerData[client.id].errors++;
-    console.log('Turn error', this.playerData[client.id].errors, error);
+    this.eventLogger.add('SERVER_PLAYER_TURN_ERROR', {
+      clientId: client.id,
+      error: error.toString(),
+      errorN: this.playerData[client.id].errors,
+      errorsBeforeKick: this.errorsBeforeKick,
+    });
     if (this.errorsBeforeKick <= 0 || this.playerData[client.id].errors < this.errorsBeforeKick) {
       return;
     }
@@ -152,7 +171,6 @@ export abstract class TurnBasedGameServer<IF extends MethodCollection> extends S
     await this.endGame();
 
     [...this.playerIds].forEach(async clientId => {
-      console.log('Disconnecting client', clientId);
       await this.closeClient(clientId);
     });
   }

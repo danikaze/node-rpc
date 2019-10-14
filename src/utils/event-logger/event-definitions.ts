@@ -99,6 +99,10 @@ export const eventDefinitions: Partial<EventDefinition<Events>> = {
       )}`,
     ],
   },
+  SERVER_CLIENT_END: {
+    level: 'info',
+    msg: ({ clientId }: Events['SERVER_CLIENT_END']) => [`Client ${clientId} ended`],
+  },
 
   // client events
   CLIENT_START: {

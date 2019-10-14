@@ -198,6 +198,7 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
       await clientData.tx.send<EndMsg>({ type: 'END' });
       clientData.socket.end(() => {
         delete this.connections[clientData.id];
+        this.eventLogger.add('SERVER_CLIENT_END', { clientId: clientData.id });
         resolve();
       });
     });

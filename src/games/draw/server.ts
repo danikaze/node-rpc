@@ -1,7 +1,7 @@
-import { MethodInterface } from './method-interface';
-import { TurnBasedGameServer } from '../turn-server';
-import { ClientData, ServerOptions } from '../../utils/server';
 import { Events } from '../../utils/event-logger/events';
+import { ClientData, ServerOptions } from '../../utils/server';
+import { TurnBasedGameServer } from '../turn-based-server';
+import { MethodInterface } from './method-interface';
 
 export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
   private static readonly gameTurns: number = 3;
