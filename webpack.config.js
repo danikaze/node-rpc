@@ -62,6 +62,7 @@ module.exports = env => {
           return c;
         })(),
         NODE_ENV: JSON.stringify(isProd ? 'production' : 'development'),
+        IS_PRODUCTION: isProd,
       }),
       new BannerPlugin({
         raw: true,
