@@ -44,7 +44,7 @@ export class Client<M extends MethodCollection> {
     return new Promise<void>((resolve, reject) => {
       this.socket.once('connect', async () => {
         await this.handshake();
-        logEvent('CLIENT_CONNECTED', { clientId: this.id });
+        logEvent('CLIENT_CONNECTED', { clientId: this.id, host: this.host, port: this.port });
         resolve();
       });
 

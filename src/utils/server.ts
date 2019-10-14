@@ -163,7 +163,6 @@ export abstract class Server<M extends MethodCollection> {
           method: method as string,
           clientId: clientData.id,
           result: msg.result,
-          timeout: hasTimeout,
         });
         resolve(msg.result as R);
       }
