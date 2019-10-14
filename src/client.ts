@@ -1,9 +1,6 @@
 import { Client } from './utils/client';
-import { logEvent } from './utils/event-logger';
 
 async function run(): Promise<void> {
-  logEvent('CLIENT_START', { version: APP_VERSION });
-
   const client = new Client({
     file: getClientFilename(),
     host: SERVER_HOST,

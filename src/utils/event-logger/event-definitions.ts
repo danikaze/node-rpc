@@ -1,5 +1,5 @@
 import { Events } from './events';
-import { EventDefinition } from './event-logger';
+import { EventDefinition } from './';
 
 function stringify(data: unknown): string {
   return JSON.stringify(data, null, 2);

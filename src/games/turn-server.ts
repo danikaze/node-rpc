@@ -1,8 +1,9 @@
 // tslint:disable: no-console
 import { MethodCollection } from '../utils/msgs';
 import { Server, ServerOptions, ClientData } from '../utils/server';
+import { Events } from '../utils/event-logger/events';
 
-export interface TurnBasedGameServerOptions extends ServerOptions {
+export interface TurnBasedGameServerOptions extends ServerOptions<Events> {
   nPlayersRequired: number;
   errorsBeforeKick?: number;
 }
