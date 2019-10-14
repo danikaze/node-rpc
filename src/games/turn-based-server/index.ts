@@ -1,14 +1,21 @@
 // tslint:disable: no-console
+import { sync as mkdirp } from 'mkdirp';
 import { MethodCollection } from '../../utils/msgs';
 import { Server, ServerOptions, ClientData } from '../../utils/server';
 import { EventLogger } from '../../utils/event-logger';
 import { TurnBasedGameEvents } from './events';
 import { getTurnBasedGameEventLogger } from './event-logger';
+import { writeFile } from 'fs';
+import { dirname } from 'path';
 
 export interface TurnBasedGameServerOptions<E extends TurnBasedGameEvents>
   extends ServerOptions<E> {
+  /** Number of players required to connect before starting the game */
   nPlayersRequired: number;
+  /** Number of turn errors required before kicking a client */
   errorsBeforeKick?: number;
+  /** If specified, the game log will be dumped to this file when ended */
+  gameLog?: string;
 }
 
 interface TurnBasedGamePlayerData {
@@ -25,7 +32,9 @@ export abstract class TurnBasedGameServer<
   protected readonly playerIds: string[] = [];
   private readonly nPlayersRequired: number;
   private readonly errorsBeforeKick: number;
+  private readonly gameLog: string;
   private readonly playerData: { [clientId: string]: TurnBasedGamePlayerData } = {};
+  private readonly playerDataAtStart: { id: string; host: string; port: number }[] = [];
   private currentPlayerIndex: number = -1;
 
   constructor(options: TurnBasedGameServerOptions<E>) {
@@ -36,6 +45,7 @@ export abstract class TurnBasedGameServer<
     this.nPlayersRequired = options.nPlayersRequired;
     this.errorsBeforeKick =
       options.errorsBeforeKick || TurnBasedGameServer.defaultOptions.errorsBeforeKick;
+    this.gameLog = options.gameLog;
   }
 
   /**
@@ -121,16 +131,59 @@ export abstract class TurnBasedGameServer<
   }
 
   /**
+   * When the game finishes, this method will be called if `options.gameLog` is set
+   * Can be overriden for custom logs (no `super.dumpGameLog` call required)
+   */
+  protected async dumpGameLog(path: string): Promise<void> {
+    return new Promise<void>(resolve => {
+      const data = {
+        players: this.playerDataAtStart,
+        game: this.eventLogger.getList(),
+      };
+      writeFile(path, JSON.stringify(data), { encoding: 'utf8' }, error => {
+        if (error) {
+          this.eventLogger.add('SERVER_GAME_LOG_DUMP_ERROR', { path, error: String(error) });
+        } else {
+          this.eventLogger.add('SERVER_GAME_LOG_DUMP', { path });
+        }
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * Allow using basic placeholders for the game log dump filepath:
+   * - {TIMESTAMP}
+   * - {DATE}
+   * - {TIME}
+   */
+  private replacePathTemplate(path: string): string {
+    const date = new Date();
+
+    let res = path.replace(/\{TIMESTAMP\}/g, date.getTime().toString());
+    res = res.replace(/\{DATE\}/g, date.toLocaleDateString());
+    res = res.replace(/\{TIME\}/g, date.toLocaleTimeString());
+
+    return res;
+  }
+
+  /**
    * Internal code to initialize the game before the main loop,
    * after all players have been connected.
    */
   private async initGame(): Promise<void> {
     const clientIds = Object.keys(this.connections);
     clientIds.forEach(async clientId => {
+      const playerData = this.connections[clientId];
       this.playerData[clientId] = {
         errors: 0,
       };
-      await this.initPlayer(this.connections[clientId]);
+      this.playerDataAtStart.push({
+        id: clientId,
+        host: playerData.socket.remoteAddress,
+        port: playerData.socket.remotePort,
+      });
+      await this.initPlayer(playerData);
     });
     await this.startGame();
   }
@@ -170,8 +223,19 @@ export abstract class TurnBasedGameServer<
   private async closeGame(): Promise<void> {
     await this.endGame();
 
-    [...this.playerIds].forEach(async clientId => {
-      await this.closeClient(clientId);
+    // start dumping the game log while closing clients at the same time
+    const promises: Promise<void>[] = [];
+
+    if (this.gameLog) {
+      const filePath = this.replacePathTemplate(this.gameLog);
+      mkdirp(dirname(filePath));
+      promises.push(this.dumpGameLog(filePath));
+    }
+
+    [...this.playerIds].forEach(clientId => {
+      promises.push(this.closeClient(clientId));
     });
+
+    await Promise.all(promises);
   }
 }

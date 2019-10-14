@@ -16,6 +16,7 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
       ...options,
       nPlayersRequired: 2,
       errorsBeforeKick: 2,
+      gameLog: 'gameLog/log-{TIMESTAMP}.json',
     });
   }
 

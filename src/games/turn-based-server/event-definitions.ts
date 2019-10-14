@@ -23,4 +23,16 @@ export const turnBasedEventDefinitions: Partial<BasicEventDefinition<TurnBasedGa
       `Turn error ${errorN}/${errorsBeforeKick} for client ${clientId}: ${error}`,
     ],
   },
+  SERVER_GAME_LOG_DUMP: {
+    level: 'info',
+    msg: ({ path }: TurnBasedGameEvents['SERVER_GAME_LOG_DUMP']) => [
+      `Game log dumped into ${path}`,
+    ],
+  },
+  SERVER_GAME_LOG_DUMP_ERROR: {
+    level: 'error',
+    msg: ({ path, error }: TurnBasedGameEvents['SERVER_GAME_LOG_DUMP_ERROR']) => [
+      `Error while dumping game log into ${path}`,
+    ],
+  },
 };

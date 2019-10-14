@@ -12,6 +12,7 @@ old
 _samples
 *.zip
 bin
+gameLog
 
 # =========================
 # Operating System Files

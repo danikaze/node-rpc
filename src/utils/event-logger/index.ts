@@ -24,6 +24,13 @@ export type EventDefinition<E> = Record<
   }
 >;
 
+export interface GetListOptions<E> {
+  /** If specified, only this type of events will be returned (takes precedence over `blackList`) */
+  whiteList?: (keyof E)[];
+  /** If specified, all but this events will be returned */
+  blackList?: (keyof E)[];
+}
+
 export type LoggerLevel = 'error' | 'warn' | 'info' | 'verbose' | 'debug';
 
 /**
@@ -77,6 +84,22 @@ export class EventLogger<E extends Events> {
     }
 
     console[EventLogger.levelMap[level]](...msgParams);
+  }
+
+  /**
+   * Get the list of the logged events
+   */
+  public getList({ whiteList, blackList }: GetListOptions<E> = {}): {
+    type: keyof E;
+    data?: E[keyof E];
+  }[] {
+    if (whiteList) {
+      return this.list.filter(event => whiteList.indexOf(event.type) !== -1);
+    }
+    if (blackList) {
+      return this.list.filter(event => whiteList.indexOf(event.type) === -1);
+    }
+    return this.list;
   }
 }
 

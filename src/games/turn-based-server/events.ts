@@ -12,4 +12,11 @@ export interface TurnBasedGameEvents extends Events {
     errorN: number;
     errorsBeforeKick: number;
   };
+  SERVER_GAME_LOG_DUMP: {
+    path: string;
+  };
+  SERVER_GAME_LOG_DUMP_ERROR: {
+    path: string;
+    error: string;
+  };
 }
