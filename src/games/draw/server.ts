@@ -6,6 +6,7 @@ import { MethodInterface } from './method-interface';
 export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
   private static readonly gameTurns: number = 3;
   private static readonly nPlayersRequired: number = 2;
+  private static readonly errorsBeforeKick = 2;
   private static readonly maxDraw: number = 100;
 
   private readonly scores: { [clientId: string]: number } = {};
@@ -14,8 +15,8 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
   constructor(options: ServerOptions<Events>) {
     super({
       ...options,
-      nPlayersRequired: 2,
-      errorsBeforeKick: 2,
+      nPlayersRequired: DrawGameServer.nPlayersRequired,
+      errorsBeforeKick: DrawGameServer.errorsBeforeKick,
       gameLog: 'gameLog/log-{TIMESTAMP}.json',
     });
   }
@@ -26,7 +27,7 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
 
   protected hasGameEnded(): boolean {
     return (
-      this.playerIds.length < 2 ||
+      this.playerIds.length < DrawGameServer.nPlayersRequired ||
       this.turnNumber === DrawGameServer.gameTurns * DrawGameServer.nPlayersRequired
     );
   }
