@@ -1,20 +1,23 @@
-import { MethodInterface } from './method-interface';
-import { TurnBasedGameServer } from '../turn-server';
+import { Events } from '../../utils/event-logger/events';
 import { ClientData, ServerOptions } from '../../utils/server';
+import { TurnBasedGameServer } from '../turn-based-server';
+import { MethodInterface } from './method-interface';
 
 export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
   private static readonly gameTurns: number = 3;
   private static readonly nPlayersRequired: number = 2;
+  private static readonly errorsBeforeKick = 2;
   private static readonly maxDraw: number = 100;
 
   private readonly scores: { [clientId: string]: number } = {};
   private turnNumber: number;
 
-  constructor(options: ServerOptions) {
+  constructor(options: ServerOptions<Events>) {
     super({
       ...options,
-      nPlayersRequired: 2,
-      errorsBeforeKick: 2,
+      nPlayersRequired: DrawGameServer.nPlayersRequired,
+      errorsBeforeKick: DrawGameServer.errorsBeforeKick,
+      gameLog: 'gameLog/log-{TIMESTAMP}.json',
     });
   }
 
@@ -24,7 +27,7 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
 
   protected hasGameEnded(): boolean {
     return (
-      this.playerIds.length < 2 ||
+      this.playerIds.length < DrawGameServer.nPlayersRequired ||
       this.turnNumber === DrawGameServer.gameTurns * DrawGameServer.nPlayersRequired
     );
   }

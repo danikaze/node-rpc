@@ -48,6 +48,7 @@
     "webpack-cli": "^3.3.9"
   },
   "dependencies": {
+    "mkdirp": "^0.5.1",
     "vanilla-type-check": "^2.0.3"
   }
 }

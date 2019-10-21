@@ -1,6 +1,4 @@
-export type EventType = keyof EventData;
-
-export interface EventData {
+export interface Events {
   // server events
   SERVER_START: {
     version: string;
@@ -46,7 +44,6 @@ export interface EventData {
     method: string;
     time: number;
     result: unknown;
-    timeout: boolean;
   };
   SERVER_RPC_TIMEOUT: {
     clientId: string;
@@ -67,6 +64,9 @@ export interface EventData {
     method: string;
     data: unknown;
   };
+  SERVER_CLIENT_END: {
+    clientId: string;
+  };
 
   // client events
   CLIENT_START: {
@@ -74,6 +74,8 @@ export interface EventData {
   };
   CLIENT_CONNECTED: {
     clientId: string;
+    host: string;
+    port: number;
   };
   CLIENT_ERROR: {
     error: Error;

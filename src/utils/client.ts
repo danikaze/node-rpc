@@ -10,26 +10,34 @@ import {
   MethodCollection,
   ErrorExceptionMsg,
 } from './msgs';
-import { logEvent } from './event-logger';
+import { EventLogger, getBasicEventLogger } from './event-logger/';
+import { Events } from './event-logger/events';
 
-export interface ClientOptions {
+export interface ClientOptions<E extends Events> {
   /** Host the socket should connect to. (`'localhost'` by default) */
   host?: string;
   /** Port the socket should connect to */
   port: number;
   /** Path of the file to import */
   file: string;
+  /** Event logger to use. If not specified, it will create its own */
+  eventLogger?: EventLogger<E>;
 }
 
-export class Client<M extends MethodCollection> {
+export class Client<M extends MethodCollection, E extends Events = Events> {
   protected readonly host: string;
   protected readonly port: number;
   protected readonly socket: Socket;
   protected readonly tx: JsonTx;
+  protected readonly eventLogger: EventLogger<E>;
+  protected readonly rpcMethods: M;
   protected id: string;
-  protected rpcMethods: M;
 
-  constructor(options: ClientOptions) {
+  constructor(options: ClientOptions<E>) {
+    this.eventLogger = (options.eventLogger || getBasicEventLogger()) as EventLogger<E>;
+
+    this.eventLogger.add('CLIENT_START', { version: APP_VERSION });
+
     this.port = options.port;
     this.host = options.host || 'localhost';
     this.socket = new Socket();
@@ -44,12 +52,16 @@ export class Client<M extends MethodCollection> {
     return new Promise<void>((resolve, reject) => {
       this.socket.once('connect', async () => {
         await this.handshake();
-        logEvent('CLIENT_CONNECTED', { clientId: this.id });
+        this.eventLogger.add('CLIENT_CONNECTED', {
+          clientId: this.id,
+          host: this.host,
+          port: this.port,
+        });
         resolve();
       });
 
       this.socket.once('error', error => {
-        logEvent('CLIENT_ERROR', { error });
+        this.eventLogger.add('CLIENT_ERROR', { error });
         reject(error);
       });
 
@@ -62,7 +74,7 @@ export class Client<M extends MethodCollection> {
    */
   public async close(): Promise<void> {
     return new Promise<void>(resolve => {
-      logEvent('CLIENT_CLOSE');
+      this.eventLogger.add('CLIENT_CLOSE', undefined);
       this.socket.end(resolve);
     });
   }
@@ -80,7 +92,10 @@ export class Client<M extends MethodCollection> {
       }
 
       if (msg.type === 'METHOD_REQUEST') {
-        logEvent('CLIENT_RPC_REQUEST', { method: msg.method as string, params: msg.params });
+        this.eventLogger.add('CLIENT_RPC_REQUEST', {
+          method: msg.method as string,
+          params: msg.params,
+        });
         const method = this.rpcMethods[msg.method];
         if (!method) {
           this.tx.send<ErrorNotImplementedMsg<M>>({
@@ -92,13 +107,13 @@ export class Client<M extends MethodCollection> {
 
         try {
           const result = msg.params ? method(...msg.params) : method();
-          logEvent('CLIENT_RPC_RESPONSE', { result, method: msg.method as string });
+          this.eventLogger.add('CLIENT_RPC_RESPONSE', { result, method: msg.method as string });
           this.tx.send<MethodResponseMsg>({
             result,
             type: 'METHOD_RESULT',
           });
         } catch (error) {
-          logEvent('CLIENT_RPC_EXCEPTION', { error, method: msg.method as string });
+          this.eventLogger.add('CLIENT_RPC_EXCEPTION', { error, method: msg.method as string });
           this.tx.send<ErrorExceptionMsg<M>>({
             error: error.toString(),
             method: msg.method,
@@ -142,10 +157,10 @@ export class Client<M extends MethodCollection> {
   protected loadCode(filePath: string): M {
     try {
       const module = __non_webpack_require__(`${RPC_FOLDER}${filePath}`);
-      logEvent('CLIENT_CODE_LOAD', { path: filePath });
+      this.eventLogger.add('CLIENT_CODE_LOAD', { path: filePath });
       return module;
     } catch (error) {
-      logEvent('CLIENT_CODE_LOAD_ERROR', { error, path: filePath });
+      this.eventLogger.add('CLIENT_CODE_LOAD_ERROR', { error, path: filePath });
     }
   }
 }
