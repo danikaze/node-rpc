@@ -80,6 +80,7 @@ export interface Events {
   CLIENT_ERROR: {
     error: Error;
   };
+  CLIENT_MODULE_LOAD: undefined;
   CLIENT_CODE_LOAD: {
     path: string;
   };

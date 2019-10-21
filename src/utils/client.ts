@@ -13,13 +13,15 @@ import {
 import { EventLogger, getBasicEventLogger } from './event-logger/';
 import { Events } from './event-logger/events';
 
-export interface ClientOptions<E extends Events> {
+export interface ClientOptions<M extends MethodCollection, E extends Events> {
   /** Host the socket should connect to. (`'localhost'` by default) */
   host?: string;
   /** Port the socket should connect to */
   port: number;
-  /** Path of the file to import */
-  file: string;
+  /** Methods implementation */
+  module?: M;
+  /** Path of the file to import (if `module` is not especified) */
+  file?: string;
   /** Event logger to use. If not specified, it will create its own */
   eventLogger?: EventLogger<E>;
 }
@@ -33,7 +35,7 @@ export class Client<M extends MethodCollection, E extends Events = Events> {
   protected readonly rpcMethods: M;
   protected id: string;
 
-  constructor(options: ClientOptions<E>) {
+  constructor(options: ClientOptions<M, E>) {
     this.eventLogger = (options.eventLogger || getBasicEventLogger()) as EventLogger<E>;
 
     this.eventLogger.add('CLIENT_START', { version: APP_VERSION });
@@ -42,7 +44,7 @@ export class Client<M extends MethodCollection, E extends Events = Events> {
     this.host = options.host || 'localhost';
     this.socket = new Socket();
     this.tx = new JsonTx(this.socket);
-    this.rpcMethods = this.loadCode(options.file);
+    this.rpcMethods = this.loadCode(options.module || options.file);
   }
 
   /**
@@ -154,13 +156,18 @@ export class Client<M extends MethodCollection, E extends Events = Events> {
     });
   }
 
-  protected loadCode(filePath: string): M {
+  protected loadCode(source: string | M): M {
+    if (typeof source !== 'string') {
+      this.eventLogger.add('CLIENT_MODULE_LOAD', undefined);
+      return source;
+    }
+
     try {
-      const module = __non_webpack_require__(`${RPC_FOLDER}${filePath}`);
-      this.eventLogger.add('CLIENT_CODE_LOAD', { path: filePath });
-      return module;
+      const mod = __non_webpack_require__(`${RPC_FOLDER}${source}`);
+      this.eventLogger.add('CLIENT_CODE_LOAD', { path: source });
+      return mod;
     } catch (error) {
-      this.eventLogger.add('CLIENT_CODE_LOAD_ERROR', { error, path: filePath });
+      this.eventLogger.add('CLIENT_CODE_LOAD_ERROR', { error, path: source });
     }
   }
 }
