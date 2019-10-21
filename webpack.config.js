@@ -1,4 +1,4 @@
-const { readdirSync } = require('fs');
+const { readdirSync, statSync } = require('fs');
 const { join, extname } = require('path');
 const { BannerPlugin, DefinePlugin } = require('webpack');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
@@ -15,8 +15,7 @@ module.exports = env => {
     devtool: isProd ? undefined : 'inline-source-map',
 
     entry: {
-      server: ['src/server.ts'],
-      client: ['src/client.ts'],
+      ...generateRpcEntries('src/entries', 'entries'),
       ...generateRpcEntries('src/rpc', 'rpc'),
     },
 
@@ -94,14 +93,21 @@ module.exports = env => {
 };
 
 function generateRpcEntries(entryFolder, bundlePrefix = '', filter = /\.[tj]s$/) {
-  const res = {};
+  let res = {};
 
   readdirSync(entryFolder).forEach(file => {
+    const fileName = join(entryFolder, file);
+    if (statSync(fileName).isDirectory()) {
+      res = {
+        ...res,
+        ...generateRpcEntries(fileName, `${bundlePrefix}/${file}`, filter),
+      };
+    }
+
     if (filter && !filter.test(file)) {
       return;
     }
 
-    const fileName = join(entryFolder, file);
     const bundleName = join(bundlePrefix, stripExtension(file));
     res[bundleName] = fileName;
   });

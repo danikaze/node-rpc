@@ -119,6 +119,10 @@ export const eventDefinitions: Partial<EventDefinition<Events>> = {
     level: 'info',
     msg: ({ error }: Events['CLIENT_ERROR']) => [`Error: ${stringify(error)}`],
   },
+  CLIENT_MODULE_LOAD: {
+    level: 'info',
+    msg: () => [`Code loaded programatically`],
+  },
   CLIENT_CODE_LOAD: {
     level: 'info',
     msg: ({ path }: Events['CLIENT_CODE_LOAD']) => [`Code loaded from "${path}"`],

@@ -1,4 +1,4 @@
-import { DrawGameServer } from './games/draw/server';
+import { DrawGameServer } from '../../games/draw/server';
 
 async function run(): Promise<void> {
   const server = new DrawGameServer({
