@@ -5,6 +5,11 @@ function stringify(data: unknown): string {
   return JSON.stringify(data, null, 2);
 }
 
+function stringifyFunction(name: string, params: unknown[]): string {
+  const p = !params ? [''] : params.map(stringify);
+  return `${name}(${p.join(', ')})`;
+}
+
 export const eventDefinitions: Partial<EventDefinition<Events>> = {
   // server events
   SERVER_START: {
@@ -64,7 +69,7 @@ export const eventDefinitions: Partial<EventDefinition<Events>> = {
   SERVER_RPC_REQUEST: {
     level: 'info',
     msg: ({ clientId, method, params }: Events['SERVER_RPC_REQUEST']) => [
-      `RPC request to ${clientId}: ${method}(${(params && stringify(params)) || ''})`,
+      `RPC request to ${clientId}: ${stringifyFunction(method, params)}`,
     ],
   },
   SERVER_RPC_RESPONSE: {
@@ -136,7 +141,7 @@ export const eventDefinitions: Partial<EventDefinition<Events>> = {
   CLIENT_RPC_REQUEST: {
     level: 'info',
     msg: ({ method, params }: Events['CLIENT_RPC_REQUEST']) => [
-      `RPC request: ${method}(${(params && stringify(params)) || ''})`,
+      `RPC request: ${stringifyFunction(method, params)}`,
     ],
   },
   CLIENT_RPC_RESPONSE: {
