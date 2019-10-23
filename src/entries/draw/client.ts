@@ -1,9 +1,5 @@
 import { Client } from '../../utils/client';
-import { MethodInterface } from '../../games/draw/method-interface';
-
-const implementation: MethodInterface = {
-  draw: max => Math.round(Math.random() * max),
-};
+import { implementation } from '../../games/draw/client';
 
 async function run(): Promise<void> {
   const client = new Client({
