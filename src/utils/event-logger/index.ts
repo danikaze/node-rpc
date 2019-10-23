@@ -12,6 +12,10 @@ export interface EventLoggerOptions<E> {
    * If an event type is not specified, it will use a default msg and an 'info' level
    */
   events?: Partial<EventDefinition<E>>;
+  /**
+   * If `true`, it will add the ellapsed time in milliseconds at the beginning of each msg
+   */
+  addTime?: boolean;
 }
 
 export type EventDefinition<E> = Record<
@@ -32,6 +36,12 @@ export interface GetListOptions<E> {
 }
 
 export type LoggerLevel = 'error' | 'warn' | 'info' | 'verbose' | 'debug';
+
+interface LoggedEvent<E> {
+  type: keyof E;
+  data?: E[keyof E];
+  time?: number;
+}
 
 /**
  * Abstraction class to log all the events of the application without having to define how to treat
@@ -54,18 +64,29 @@ export class EventLogger<E extends Events> {
 
   protected readonly level: number;
   protected readonly definitions: Partial<EventDefinition<E>>;
-  private readonly list: { type: keyof E; data?: E[keyof E] }[] = [];
+  protected readonly addTime: boolean;
+
+  /** List of added events */
+  private list: LoggedEvent<E>[];
+  private startTime: number;
 
   constructor(options?: EventLoggerOptions<E>) {
     this.level = EventLogger.levels.indexOf((options && options.level) || 'error');
     this.definitions = (options && options.events) || {};
+    this.addTime = (options && options.addTime) || !IS_PRODUCTION;
+
+    this.reset();
   }
 
   /**
    * Log the specified event
    */
   public add<T extends keyof E>(type: T, data: E[T]) {
-    this.list.push({ type, data });
+    const event: LoggedEvent<E> = { type, data };
+    if (this.addTime) {
+      event.time = Date.now() - this.startTime;
+    }
+    this.list.push(event);
 
     const def = this.definitions[type];
     const level = (def && def.level) || 'info';
@@ -83,7 +104,11 @@ export class EventLogger<E extends Events> {
       msgParams = [`Event ${type}`];
     }
 
-    console[EventLogger.levelMap[level]](...msgParams);
+    if (this.addTime) {
+      console[EventLogger.levelMap[level]](`[${event.time}]`, ...msgParams);
+    } else {
+      console[EventLogger.levelMap[level]](...msgParams);
+    }
   }
 
   /**
@@ -100,6 +125,14 @@ export class EventLogger<E extends Events> {
       return this.list.filter(event => whiteList.indexOf(event.type) === -1);
     }
     return this.list;
+  }
+
+  /**
+   * Reset the list of events and the time
+   */
+  public reset(): void {
+    this.list = [];
+    this.startTime = Date.now();
   }
 }
 
