@@ -64,7 +64,7 @@ export const eventDefinitions: Partial<EventDefinition<Events>> = {
   SERVER_RPC_REQUEST: {
     level: 'info',
     msg: ({ clientId, method, params }: Events['SERVER_RPC_REQUEST']) => [
-      `RPC request to ${clientId}: ${method}(${(params && params.join(', ')) || ''})`,
+      `RPC request to ${clientId}: ${method}(${(params && stringify(params)) || ''})`,
     ],
   },
   SERVER_RPC_RESPONSE: {
@@ -136,7 +136,7 @@ export const eventDefinitions: Partial<EventDefinition<Events>> = {
   CLIENT_RPC_REQUEST: {
     level: 'info',
     msg: ({ method, params }: Events['CLIENT_RPC_REQUEST']) => [
-      `RPC request: ${method}(${(params && params.join(', ')) || ''})`,
+      `RPC request: ${method}(${(params && stringify(params)) || ''})`,
     ],
   },
   CLIENT_RPC_RESPONSE: {
