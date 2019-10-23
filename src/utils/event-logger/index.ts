@@ -37,7 +37,7 @@ export interface GetListOptions<E> {
 
 export type LoggerLevel = 'error' | 'warn' | 'info' | 'verbose' | 'debug';
 
-interface LoggedEvent<E> {
+export interface LoggedEvent<E> {
   type: keyof E;
   data?: E[keyof E];
   time?: number;
@@ -114,10 +114,7 @@ export class EventLogger<E extends Events> {
   /**
    * Get the list of the logged events
    */
-  public getList({ whiteList, blackList }: GetListOptions<E> = {}): {
-    type: keyof E;
-    data?: E[keyof E];
-  }[] {
+  public getList({ whiteList, blackList }: GetListOptions<E> = {}): LoggedEvent<E>[] {
     if (whiteList) {
       return this.list.filter(event => whiteList.indexOf(event.type) !== -1);
     }

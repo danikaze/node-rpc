@@ -33,8 +33,8 @@ export abstract class TurnBasedGameServer<
   private readonly nPlayersRequired: number;
   private readonly errorsBeforeKick: number;
   private readonly gameLog: string;
-  private readonly playerData: { [clientId: string]: TurnBasedGamePlayerData } = {};
-  private readonly playerDataAtStart: { id: string; host: string; port: number }[] = [];
+  private playerData: { [clientId: string]: TurnBasedGamePlayerData } = {};
+  private playerDataAtStart: { id: string; host: string; port: number }[];
   private currentPlayerIndex: number = -1;
 
   constructor(options: TurnBasedGameServerOptions<E>) {
@@ -225,19 +225,22 @@ export abstract class TurnBasedGameServer<
     await this.endGame();
     this.eventLogger.add('SERVER_GAME_END', undefined);
 
-    // start dumping the game log while closing clients at the same time
+    // close all clients at the same time
     const promises: Promise<void>[] = [];
-
-    if (this.gameLog) {
-      const filePath = this.replacePathTemplate(this.gameLog);
-      mkdirp(dirname(filePath));
-      promises.push(this.dumpGameLog(filePath));
-    }
 
     [...this.playerIds].forEach(clientId => {
       promises.push(this.closeClient(clientId));
     });
-
     await Promise.all(promises);
+
+    if (this.gameLog) {
+      const filePath = this.replacePathTemplate(this.gameLog);
+      mkdirp(dirname(filePath));
+      await this.dumpGameLog(filePath);
+    }
+
+    this.playerData = {};
+    this.playerDataAtStart = [];
+    this.eventLogger.reset();
   }
 }
