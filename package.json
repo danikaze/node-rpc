@@ -49,7 +49,10 @@
     "webpack-cli": "^3.3.9"
   },
   "dependencies": {
+    "extend-objects-only": "^1.0.0",
     "mkdirp": "^0.5.1",
-    "vanilla-type-check": "^2.0.3"
+    "vanilla-type-check": "^2.0.3",
+    "winston": "^3.2.1",
+    "winston-transport": "^4.3.0"
   }
 }

@@ -5,6 +5,7 @@ declare const APP_VERSION: string;
 declare const SERVER_HOST: string;
 declare const SERVER_PORT: number;
 declare const RPC_FOLDER: string;
+declare const IS_SERVER: boolean;
 
 /**
  * Globals from webpack

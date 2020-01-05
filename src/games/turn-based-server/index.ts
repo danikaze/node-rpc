@@ -1,51 +1,48 @@
 // tslint:disable: no-console
-import { sync as mkdirp } from 'mkdirp';
+import { extendObjectsOnly } from 'extend-objects-only';
 import { MethodCollection } from '../../utils/msgs';
 import { Server, ServerOptions, ClientData } from '../../utils/server';
-import { EventLogger } from '../../utils/event-logger';
-import { TurnBasedGameEvents } from './events';
-import { getTurnBasedGameEventLogger } from './event-logger';
-import { writeFile } from 'fs';
-import { dirname } from 'path';
+// import { writeFile } from 'fs';
+import { TurnBasedServerLogger, TurnBasedEventLogger } from './event-logger';
+import { logger } from '../../utils/event-logger';
 
-export interface TurnBasedGameServerOptions<E extends TurnBasedGameEvents>
-  extends ServerOptions<E> {
+export interface TurnBasedGameServerOptions extends ServerOptions {
   /** Number of players required to connect before starting the game */
   nPlayersRequired: number;
   /** Number of turn errors required before kicking a client */
   errorsBeforeKick?: number;
-  /** If specified, the game log will be dumped to this file when ended */
-  gameLog?: string;
 }
 
 interface TurnBasedGamePlayerData {
   errors: number;
 }
 
-export abstract class TurnBasedGameServer<
-  IF extends MethodCollection,
-  E extends TurnBasedGameEvents = TurnBasedGameEvents
-> extends Server<IF, E> {
+export abstract class TurnBasedGameServer<IF extends MethodCollection> extends Server<IF> {
   public static defaultOptions = {
     errorsBeforeKick: 3,
   };
   protected readonly playerIds: string[] = [];
+  protected readonly logger: TurnBasedServerLogger;
   private readonly nPlayersRequired: number;
   private readonly errorsBeforeKick: number;
-  private readonly gameLog: string;
   private playerData: { [clientId: string]: TurnBasedGamePlayerData } = {};
-  private playerDataAtStart: { id: string; host: string; port: number }[];
+  private playerDataAtStart: { id: string; host: string; port: number }[] = [];
   private currentPlayerIndex: number = -1;
 
-  constructor(options: TurnBasedGameServerOptions<E>) {
-    super({
-      eventLogger: (options.eventLogger || getTurnBasedGameEventLogger()) as EventLogger<E>,
-      ...options,
-    });
+  constructor(options: TurnBasedGameServerOptions) {
+    super(extendObjectsOnly(
+      {
+        loggerInitOptions: {
+          factory: TurnBasedEventLogger,
+        },
+      },
+      options as Partial<ServerOptions>
+    ) as ServerOptions);
+
     this.nPlayersRequired = options.nPlayersRequired;
     this.errorsBeforeKick =
       options.errorsBeforeKick || TurnBasedGameServer.defaultOptions.errorsBeforeKick;
-    this.gameLog = options.gameLog;
+    this.logger = (logger as TurnBasedEventLogger).turnBasedServer;
   }
 
   /**
@@ -56,11 +53,7 @@ export abstract class TurnBasedGameServer<
     this.playerIds.push(client.id);
     const nPlayers = this.playerIds.length;
 
-    this.eventLogger.add('SERVER_PLAYER_CONNECTED', {
-      clientId: client.id,
-      playerN: nPlayers,
-      playersRequired: this.nPlayersRequired,
-    });
+    this.logger.playerConnected(client.id, nPlayers, this.nPlayersRequired);
 
     if (nPlayers === this.nPlayersRequired) {
       await this.initGame();
@@ -131,43 +124,6 @@ export abstract class TurnBasedGameServer<
   }
 
   /**
-   * When the game finishes, this method will be called if `options.gameLog` is set
-   * Can be overriden for custom logs (no `super.dumpGameLog` call required)
-   */
-  protected async dumpGameLog(path: string): Promise<void> {
-    return new Promise<void>(resolve => {
-      const data = {
-        players: this.playerDataAtStart,
-        game: this.eventLogger.getList(),
-      };
-      writeFile(path, JSON.stringify(data), { encoding: 'utf8' }, error => {
-        if (error) {
-          this.eventLogger.add('SERVER_GAME_LOG_DUMP_ERROR', { path, error: String(error) });
-        } else {
-          this.eventLogger.add('SERVER_GAME_LOG_DUMP', { path });
-        }
-        resolve();
-      });
-    });
-  }
-
-  /**
-   * Allow using basic placeholders for the game log dump filepath:
-   * - {TIMESTAMP}
-   * - {DATE}
-   * - {TIME}
-   */
-  private replacePathTemplate(path: string): string {
-    const date = new Date();
-
-    let res = path.replace(/\{TIMESTAMP\}/g, date.getTime().toString());
-    res = res.replace(/\{DATE\}/g, date.toLocaleDateString());
-    res = res.replace(/\{TIME\}/g, date.toLocaleTimeString());
-
-    return res;
-  }
-
-  /**
    * Internal code to initialize the game before the main loop,
    * after all players have been connected.
    */
@@ -185,7 +141,7 @@ export abstract class TurnBasedGameServer<
       });
       await this.initPlayer(playerData);
     });
-    this.eventLogger.add('SERVER_GAME_START', undefined);
+    this.logger.gameStart();
     await this.startGame();
   }
 
@@ -205,12 +161,12 @@ export abstract class TurnBasedGameServer<
 
   private async clientError(client: ClientData, error: Error): Promise<void> {
     this.playerData[client.id].errors++;
-    this.eventLogger.add('SERVER_PLAYER_TURN_ERROR', {
-      clientId: client.id,
-      error: error.toString(),
-      errorN: this.playerData[client.id].errors,
-      errorsBeforeKick: this.errorsBeforeKick,
-    });
+    this.logger.playerTurnError(
+      client.id,
+      error.toString(),
+      this.playerData[client.id].errors,
+      this.errorsBeforeKick
+    );
     if (this.errorsBeforeKick <= 0 || this.playerData[client.id].errors < this.errorsBeforeKick) {
       return;
     }
@@ -223,7 +179,7 @@ export abstract class TurnBasedGameServer<
    */
   private async closeGame(): Promise<void> {
     await this.endGame();
-    this.eventLogger.add('SERVER_GAME_END', undefined);
+    this.logger.gameEnd();
 
     // close all clients at the same time
     const promises: Promise<void>[] = [];
@@ -233,14 +189,7 @@ export abstract class TurnBasedGameServer<
     });
     await Promise.all(promises);
 
-    if (this.gameLog) {
-      const filePath = this.replacePathTemplate(this.gameLog);
-      mkdirp(dirname(filePath));
-      await this.dumpGameLog(filePath);
-    }
-
     this.playerData = {};
     this.playerDataAtStart = [];
-    this.eventLogger.reset();
   }
 }

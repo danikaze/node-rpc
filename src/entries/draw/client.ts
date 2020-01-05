@@ -6,6 +6,9 @@ async function run(): Promise<void> {
     module: implementation,
     host: SERVER_HOST,
     port: SERVER_PORT,
+    loggerInitOptions: {
+      outputFile: 'logs/draw/client/%DATE%_%TIME%.log',
+    },
   });
   await client.connect();
   await client.rpc();

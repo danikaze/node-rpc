@@ -5,4 +5,5 @@ module.exports = {
   SERVER_HOST: 'localhost',
   SERVER_PORT: 10101,
   RPC_FOLDER: '../rpc/', // requires final '/'
+  IS_SERVER: true,
 };

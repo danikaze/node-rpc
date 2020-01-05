@@ -1,7 +1,6 @@
 import { ClientData, ServerOptions } from '../../utils/server';
 import { TurnBasedGameServer } from '../turn-based-server';
 import { MethodInterface } from './method-interface';
-import { TurnBasedGameEvents } from '../turn-based-server/events';
 
 export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
   private static readonly gameTurns: number = 3;
@@ -12,12 +11,11 @@ export class DrawGameServer extends TurnBasedGameServer<MethodInterface> {
   private readonly scores: { [clientId: string]: number } = {};
   private turnNumber: number;
 
-  constructor(options: ServerOptions<TurnBasedGameEvents>) {
+  constructor(options: ServerOptions) {
     super({
       ...options,
       nPlayersRequired: DrawGameServer.nPlayersRequired,
       errorsBeforeKick: DrawGameServer.errorsBeforeKick,
-      gameLog: 'gameLog/draw/log-{TIMESTAMP}.json',
     });
   }
 

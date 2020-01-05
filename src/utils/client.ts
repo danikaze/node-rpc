@@ -10,10 +10,10 @@ import {
   MethodCollection,
   ErrorExceptionMsg,
 } from './msgs';
-import { EventLogger, getBasicEventLogger } from './event-logger/';
-import { Events } from './event-logger/events';
+import { EventLogger, logger, EventLoggerInitOptions } from './event-logger';
+import { ClientLogger } from './event-logger/client';
 
-export interface ClientOptions<M extends MethodCollection, E extends Events> {
+export interface ClientOptions<M extends MethodCollection> {
   /** Host the socket should connect to. (`'localhost'` by default) */
   host?: string;
   /** Port the socket should connect to */
@@ -22,23 +22,24 @@ export interface ClientOptions<M extends MethodCollection, E extends Events> {
   module?: M;
   /** Path of the file to import (if `module` is not especified) */
   file?: string;
-  /** Event logger to use. If not specified, it will create its own */
-  eventLogger?: EventLogger<E>;
+  /** Options to initializate the logging system */
+  loggerInitOptions?: EventLoggerInitOptions;
 }
 
-export class Client<M extends MethodCollection, E extends Events = Events> {
+export class Client<M extends MethodCollection> {
   protected readonly host: string;
   protected readonly port: number;
   protected readonly socket: Socket;
   protected readonly tx: JsonTx;
-  protected readonly eventLogger: EventLogger<E>;
+  protected readonly logger: ClientLogger;
   protected readonly rpcMethods: M;
   protected id: string;
 
-  constructor(options: ClientOptions<M, E>) {
-    this.eventLogger = (options.eventLogger || getBasicEventLogger()) as EventLogger<E>;
+  constructor(options: ClientOptions<M>) {
+    EventLogger.init(options.loggerInitOptions);
+    this.logger = logger.client;
 
-    this.eventLogger.add('CLIENT_START', { version: APP_VERSION });
+    this.logger.start(APP_VERSION);
 
     this.port = options.port;
     this.host = options.host || 'localhost';
@@ -54,16 +55,12 @@ export class Client<M extends MethodCollection, E extends Events = Events> {
     return new Promise<void>((resolve, reject) => {
       this.socket.once('connect', async () => {
         await this.handshake();
-        this.eventLogger.add('CLIENT_CONNECTED', {
-          clientId: this.id,
-          host: this.host,
-          port: this.port,
-        });
+        this.logger.connected(this.id, this.host, this.port);
         resolve();
       });
 
       this.socket.once('error', error => {
-        this.eventLogger.add('CLIENT_ERROR', { error });
+        this.logger.error(error);
         reject(error);
       });
 
@@ -76,7 +73,7 @@ export class Client<M extends MethodCollection, E extends Events = Events> {
    */
   public async close(): Promise<void> {
     return new Promise<void>(resolve => {
-      this.eventLogger.add('CLIENT_CLOSE', undefined);
+      this.logger.closed();
       this.socket.end(resolve);
     });
   }
@@ -96,10 +93,7 @@ export class Client<M extends MethodCollection, E extends Events = Events> {
       if (msg.type !== 'METHOD_REQUEST') {
         return;
       }
-      this.eventLogger.add('CLIENT_RPC_REQUEST', {
-        method: msg.method as string,
-        params: msg.params,
-      });
+      this.logger.rpcRequest(msg.method as string, msg.params);
       const method = this.rpcMethods[msg.method];
       if (!method) {
         this.tx.send<ErrorNotImplementedMsg<M>>({
@@ -111,13 +105,13 @@ export class Client<M extends MethodCollection, E extends Events = Events> {
 
       try {
         const result = msg.params ? method(...msg.params) : method();
-        this.eventLogger.add('CLIENT_RPC_RESPONSE', { result, method: msg.method as string });
+        this.logger.rpcResponse(msg.method as string, result);
         this.tx.send<MethodResponseMsg>({
           result,
           type: 'METHOD_RESULT',
         });
       } catch (error) {
-        this.eventLogger.add('CLIENT_RPC_EXCEPTION', { error, method: msg.method as string });
+        this.logger.rpcException(msg.method as string, error);
         this.tx.send<ErrorExceptionMsg<M>>({
           error: error.toString(),
           method: msg.method,
@@ -159,16 +153,16 @@ export class Client<M extends MethodCollection, E extends Events = Events> {
 
   protected loadCode(source: string | M): M {
     if (typeof source !== 'string') {
-      this.eventLogger.add('CLIENT_MODULE_LOAD', undefined);
+      this.logger.moduleLoaded();
       return source;
     }
 
     try {
       const mod = __non_webpack_require__(`${RPC_FOLDER}${source}`);
-      this.eventLogger.add('CLIENT_CODE_LOAD', { path: source });
+      this.logger.codeLoaded(source);
       return mod;
     } catch (error) {
-      this.eventLogger.add('CLIENT_CODE_LOAD_ERROR', { error, path: source });
+      this.logger.codeLoaded(source, error);
     }
   }
 }
