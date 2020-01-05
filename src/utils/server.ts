@@ -159,28 +159,29 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
         return;
       }
 
-      if (!hasTimeout) {
-        const time = new Date().getTime() - startTime;
+      if (hasTimeout) {
+        return;
+      }
+      const time = new Date().getTime() - startTime;
 
-        const valid = this.rpcDataValidation(method, msg.result);
-        if (!valid) {
-          this.eventLogger.add('SERVER_RPC_RUNTIME_VALIDATION_ERROR', {
-            method: method as string,
-            clientId: clientData.id,
-            data: msg.result,
-          });
-          reject('SERVER_RPC_RUNTIME_VALIDATION_ERROR');
-          return;
-        }
-
-        this.eventLogger.add('SERVER_RPC_RESPONSE', {
-          time,
+      const valid = this.rpcDataValidation(method, msg.result);
+      if (!valid) {
+        this.eventLogger.add('SERVER_RPC_RUNTIME_VALIDATION_ERROR', {
           method: method as string,
           clientId: clientData.id,
-          result: msg.result,
+          data: msg.result,
         });
-        resolve(msg.result as R);
+        reject('SERVER_RPC_RUNTIME_VALIDATION_ERROR');
+        return;
       }
+
+      this.eventLogger.add('SERVER_RPC_RESPONSE', {
+        time,
+        method: method as string,
+        clientId: clientData.id,
+        result: msg.result,
+      });
+      resolve(msg.result as R);
     });
   }
 

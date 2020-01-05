@@ -93,35 +93,36 @@ export class Client<M extends MethodCollection, E extends Events = Events> {
         return;
       }
 
-      if (msg.type === 'METHOD_REQUEST') {
-        this.eventLogger.add('CLIENT_RPC_REQUEST', {
-          method: msg.method as string,
-          params: msg.params,
+      if (msg.type !== 'METHOD_REQUEST') {
+        return;
+      }
+      this.eventLogger.add('CLIENT_RPC_REQUEST', {
+        method: msg.method as string,
+        params: msg.params,
+      });
+      const method = this.rpcMethods[msg.method];
+      if (!method) {
+        this.tx.send<ErrorNotImplementedMsg<M>>({
+          method: msg.method,
+          type: 'ERROR_METHOD_NOT_IMPLEMENTED',
         });
-        const method = this.rpcMethods[msg.method];
-        if (!method) {
-          this.tx.send<ErrorNotImplementedMsg<M>>({
-            method: msg.method,
-            type: 'ERROR_METHOD_NOT_IMPLEMENTED',
-          });
-          continue;
-        }
+        continue;
+      }
 
-        try {
-          const result = msg.params ? method(...msg.params) : method();
-          this.eventLogger.add('CLIENT_RPC_RESPONSE', { result, method: msg.method as string });
-          this.tx.send<MethodResponseMsg>({
-            result,
-            type: 'METHOD_RESULT',
-          });
-        } catch (error) {
-          this.eventLogger.add('CLIENT_RPC_EXCEPTION', { error, method: msg.method as string });
-          this.tx.send<ErrorExceptionMsg<M>>({
-            error: error.toString(),
-            method: msg.method,
-            type: 'ERROR_METHOD_EXCEPTION',
-          });
-        }
+      try {
+        const result = msg.params ? method(...msg.params) : method();
+        this.eventLogger.add('CLIENT_RPC_RESPONSE', { result, method: msg.method as string });
+        this.tx.send<MethodResponseMsg>({
+          result,
+          type: 'METHOD_RESULT',
+        });
+      } catch (error) {
+        this.eventLogger.add('CLIENT_RPC_EXCEPTION', { error, method: msg.method as string });
+        this.tx.send<ErrorExceptionMsg<M>>({
+          error: error.toString(),
+          method: msg.method,
+          type: 'ERROR_METHOD_EXCEPTION',
+        });
       }
     }
   }
