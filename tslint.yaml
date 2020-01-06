@@ -213,7 +213,7 @@ rules:
 
   # https://github.com/ajafff/tslint-consistent-codestyle/blob/master/docs/early-exit.md
   early-exit:
-    - true
+    - false
     - max-length: 4
 
   # https://github.com/ajafff/tslint-consistent-codestyle/blob/master/docs/no-collapsible-if.md

@@ -90,33 +90,32 @@ export class Client<M extends MethodCollection> {
         return;
       }
 
-      if (msg.type !== 'METHOD_REQUEST') {
-        return;
-      }
-      this.logger.rpcRequest(msg.method as string, msg.params);
-      const method = this.rpcMethods[msg.method];
-      if (!method) {
-        this.tx.send<ErrorNotImplementedMsg<M>>({
-          method: msg.method,
-          type: 'ERROR_METHOD_NOT_IMPLEMENTED',
-        });
-        continue;
-      }
+      if (msg.type === 'METHOD_REQUEST') {
+        this.logger.rpcRequest(msg.method as string, msg.params);
+        const method = this.rpcMethods[msg.method];
+        if (!method) {
+          this.tx.send<ErrorNotImplementedMsg<M>>({
+            method: msg.method,
+            type: 'ERROR_METHOD_NOT_IMPLEMENTED',
+          });
+          continue;
+        }
 
-      try {
-        const result = msg.params ? method(...msg.params) : method();
-        this.logger.rpcResponse(msg.method as string, result);
-        this.tx.send<MethodResponseMsg>({
-          result,
-          type: 'METHOD_RESULT',
-        });
-      } catch (error) {
-        this.logger.rpcException(msg.method as string, error);
-        this.tx.send<ErrorExceptionMsg<M>>({
-          error: error.toString(),
-          method: msg.method,
-          type: 'ERROR_METHOD_EXCEPTION',
-        });
+        try {
+          const result = msg.params ? method(...msg.params) : method();
+          this.logger.rpcResponse(msg.method as string, result);
+          this.tx.send<MethodResponseMsg>({
+            result,
+            type: 'METHOD_RESULT',
+          });
+        } catch (error) {
+          this.logger.rpcException(msg.method as string, error);
+          this.tx.send<ErrorExceptionMsg<M>>({
+            error: error.toString(),
+            method: msg.method,
+            type: 'ERROR_METHOD_EXCEPTION',
+          });
+        }
       }
     }
   }
