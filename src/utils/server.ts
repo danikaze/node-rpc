@@ -10,10 +10,10 @@ import {
   MethodCollection,
   ErrorExceptionMsg,
 } from './msgs';
-import { EventLogger, getBasicEventLogger } from './event-logger/';
-import { Events } from './event-logger/events';
+import { EventLogger, logger, EventLoggerInitOptions } from './event-logger/';
+import { ServerLogger } from './event-logger/server';
 
-export interface ServerOptions<E extends Events> {
+export interface ServerOptions {
   /** Port where to listen */
   port: number;
   /** Host where to listen (`'localhost'` by default) */
@@ -22,8 +22,8 @@ export interface ServerOptions<E extends Events> {
   backlog?: number;
   /** Ms. to wait before a RPC method timeouts (`1000` by default) */
   rpcTimeout?: number;
-  /** Event logger to use. If not specified, it will create its own */
-  eventLogger?: EventLogger<E>;
+  /** Options to initializate the logging system */
+  loggerInitOptions?: EventLoggerInitOptions;
 }
 
 export interface ClientData {
@@ -32,23 +32,24 @@ export interface ClientData {
   socket: Socket;
 }
 
-export abstract class Server<M extends MethodCollection, E extends Events = Events> {
+export abstract class Server<M extends MethodCollection> {
   /* client connections data */
   protected connectionNumber: number = 0;
   protected readonly connections: { [id: string]: ClientData } = {};
 
   /* server creation data */
-  protected readonly eventLogger: EventLogger<E>;
+  protected readonly logger: ServerLogger;
   private readonly port: number;
   private readonly host: string;
   private readonly backlog: number;
   private server: NetServer;
   private readonly rpcTimeout: number;
 
-  constructor(options: ServerOptions<E>) {
-    this.eventLogger = (options.eventLogger || getBasicEventLogger()) as EventLogger<E>;
+  constructor(options: ServerOptions) {
+    EventLogger.init(options.loggerInitOptions);
+    this.logger = logger.server;
 
-    this.eventLogger.add('SERVER_START', { version: APP_VERSION });
+    this.logger.start(APP_VERSION);
 
     this.port = options.port;
     this.host = options.host || 'localhost';
@@ -69,10 +70,7 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
       this.server.listen(this.port, this.host, this.backlog, () => {
         this.server.on('error', this.handleError.bind(this));
         this.server.on('close', this.handleClose);
-        this.eventLogger.add('SERVER_READY', {
-          host: this.host,
-          port: this.port,
-        } as Events['SERVER_READY']);
+        this.logger.ready(this.host, this.port);
         resolve();
       });
     });
@@ -83,11 +81,7 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
    */
   public async stop(): Promise<void> {
     this.server.close(error => {
-      if (error) {
-        this.eventLogger.add('SERVER_STOP_ERROR', { error });
-      } else {
-        this.eventLogger.add('SERVER_STOP', undefined);
-      }
+      this.logger.stop(error);
     });
   }
 
@@ -118,21 +112,13 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
         timeout: this.rpcTimeout,
       });
       const startTime = new Date().getTime();
-      this.eventLogger.add('SERVER_RPC_REQUEST', {
-        params,
-        method: method as string,
-        clientId: clientData.id,
-      });
+      this.logger.rpcRequest(clientData.id, method as string, params);
 
       // response
       let hasTimeout = false;
       const rpcTimeoutHandler = setTimeout(() => {
         hasTimeout = true;
-        this.eventLogger.add('SERVER_RPC_TIMEOUT', {
-          method: method as string,
-          clientId: clientData.id,
-          time: this.rpcTimeout,
-        });
+        this.logger.rpcTimeout(clientData.id, method as string, this.rpcTimeout);
         reject('ERROR_RPC_TIMEOUT');
       }, this.rpcTimeout);
 
@@ -141,46 +127,31 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
       clearTimeout(rpcTimeoutHandler);
 
       if (msg.type === 'ERROR_METHOD_NOT_IMPLEMENTED') {
-        this.eventLogger.add('SERVER_RPC_NOT_IMPLEMENTED', {
-          method: method as string,
-          clientId: clientData.id,
-        });
+        this.logger.rpcNotImplemented(clientData.id, method as string);
         reject(msg.type);
         return;
       }
 
       if (msg.type === 'ERROR_METHOD_EXCEPTION') {
-        this.eventLogger.add('SERVER_RPC_EXCEPTION', {
-          method: method as string,
-          clientId: clientData.id,
-          error: msg.error,
-        });
+        this.logger.rpcException(clientData.id, method as string, msg.error);
         reject(msg.type);
         return;
       }
 
-      if (!hasTimeout) {
-        const time = new Date().getTime() - startTime;
-
-        const valid = this.rpcDataValidation(method, msg.result);
-        if (!valid) {
-          this.eventLogger.add('SERVER_RPC_RUNTIME_VALIDATION_ERROR', {
-            method: method as string,
-            clientId: clientData.id,
-            data: msg.result,
-          });
-          reject('SERVER_RPC_RUNTIME_VALIDATION_ERROR');
-          return;
-        }
-
-        this.eventLogger.add('SERVER_RPC_RESPONSE', {
-          time,
-          method: method as string,
-          clientId: clientData.id,
-          result: msg.result,
-        });
-        resolve(msg.result as R);
+      if (hasTimeout) {
+        return;
       }
+      const time = new Date().getTime() - startTime;
+
+      const valid = this.rpcDataValidation(method, msg.result);
+      if (!valid) {
+        this.logger.rpcRuntimeValidationError(clientData.id, method as string, msg.result);
+        reject('SERVER_RPC_RUNTIME_VALIDATION_ERROR');
+        return;
+      }
+
+      this.logger.rpcResponse(clientData.id, method as string, time, msg.result);
+      resolve(msg.result as R);
     });
   }
 
@@ -198,7 +169,7 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
       await clientData.tx.send<EndMsg>({ type: 'END' });
       clientData.socket.end(() => {
         delete this.connections[clientData.id];
-        this.eventLogger.add('SERVER_CLIENT_END', { clientId: clientData.id });
+        this.logger.clientEnd(clientData.id);
         resolve();
       });
     });
@@ -228,11 +199,7 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
     ++this.connectionNumber;
     const clientId = this.generateClientId();
 
-    this.eventLogger.add('SERVER_CONNECTION_INCOMING', {
-      clientId,
-      address: socket.remoteAddress,
-      port: socket.remotePort,
-    });
+    this.logger.connectionIncoming(clientId, socket.remoteAddress, socket.remotePort);
 
     const clientData = {
       socket,
@@ -247,16 +214,16 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
   }
 
   private async handleConnectionClose(client: ClientData, error?: Error) {
-    this.eventLogger.add('SERVER_CONNECTION_CLOSED', { error, clientId: client.id });
+    this.logger.connectionClosed(client.id, error);
     this.onClientDisconnection(client, error);
   }
 
   private handleError(error: Error): void {
-    this.eventLogger.add('SERVER_ERROR', { error });
+    this.logger.error(error);
   }
 
   private handleClose(): void {
-    this.eventLogger.add('SERVER_CLOSE', undefined);
+    this.logger.close();
   }
 
   private async handshake(client: ClientData): Promise<void> {
@@ -267,11 +234,11 @@ export abstract class Server<M extends MethodCollection, E extends Events = Even
     const ack = await client.tx.waitData<HandShakeAckMsg>();
     if (ack.type !== 'HANDSHAKE_ACK' || ack.id !== client.id) {
       client.socket.end(() => {
-        this.eventLogger.add('SERVER_HANDSHAKE_ACK_ERROR', { clientId: client.id });
+        this.logger.handshakeAckError(client.id);
       });
       return;
     }
-    this.eventLogger.add('SERVER_HANDSHAKE_ACK_OK', { clientId: client.id });
+    this.logger.handshakeAckOk(client.id);
   }
 
   private generateClientId(): string {

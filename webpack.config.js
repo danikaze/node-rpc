@@ -3,16 +3,36 @@ const { join, extname } = require('path');
 const { BannerPlugin, DefinePlugin } = require('webpack');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
+const GitRevisionPlugin = require('git-revision-webpack-plugin');
 
-const constants = require('./constants');
+const gitRevisionPlugin = new GitRevisionPlugin();
+
+// read the constants from the constants file or return an empty object if not found
+function getConstants() {
+  let res = {};
+  try {
+    res = require('./constants');
+  } finally {
+    return res;
+  }
+}
 
 module.exports = env => {
-  const isProd = env === 'production';
+  const isProduction = env === 'production';
+  const defines = {
+    ...getConstants(),
+    NODE_ENV: isProduction ? 'production' : 'development',
+    IS_PRODUCTION: isProduction,
+    GIT_VERSION: gitRevisionPlugin.version(),
+    GIT_COMMITHASH: gitRevisionPlugin.commithash(),
+    GIT_BRANCH: gitRevisionPlugin.branch(),
+  };
+  console.log(`Webpack building with ${JSON.stringify(defines, null, 2)}`);
 
   return {
-    mode: isProd ? 'production' : 'development',
+    mode: isProduction ? 'production' : 'development',
 
-    devtool: isProd ? undefined : 'inline-source-map',
+    devtool: isProduction ? undefined : 'inline-source-map',
 
     entry: {
       ...generateRpcEntries('src/entries', 'entries'),
@@ -23,7 +43,7 @@ module.exports = env => {
       path: join(__dirname, 'app'),
     },
 
-    watch: !isProd,
+    watch: !isProduction,
 
     module: {
       rules: [
@@ -52,23 +72,21 @@ module.exports = env => {
     },
 
     plugins: [
-      new DefinePlugin({
-        ...(() => {
-          const c = { ...constants };
+      new DefinePlugin(
+        (() => {
+          const c = { ...defines };
           Object.keys(c).forEach(k => {
             c[k] = JSON.stringify(c[k]);
           });
           return c;
-        })(),
-        NODE_ENV: JSON.stringify(isProd ? 'production' : 'development'),
-        IS_PRODUCTION: isProd,
-      }),
+        })()
+      ),
       new BannerPlugin({
         raw: true,
         banner: `const __non_webpack_module__ = module;`,
         include: 'rpc',
       }),
-    ].concat(isProd ? [new CleanWebpackPlugin()] : []),
+    ].concat(isProduction ? [new CleanWebpackPlugin()] : []),
 
     target: 'node',
     node: {
@@ -82,11 +100,13 @@ module.exports = env => {
     },
 
     optimization: {
-      minimize: isProd,
-      namedModules: !isProd,
+      minimize: isProduction,
+      namedModules: !isProduction,
     },
 
     stats: {
+      children: false,
+      modules: false,
       children: false,
     },
   };

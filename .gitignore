@@ -5,6 +5,8 @@
 *.SUBLIME-WORKSPACE
 node_modules
 app
+logs
+gameLog
 build
 old
 *.pem
@@ -12,7 +14,6 @@ old
 _samples
 *.zip
 bin
-gameLog
 
 # =========================
 # Operating System Files

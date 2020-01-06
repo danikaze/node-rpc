@@ -32,6 +32,7 @@
   "devDependencies": {
     "@types/mkdirp": "^0.5.2",
     "clean-webpack-plugin": "^3.0.0",
+    "git-revision-webpack-plugin": "^3.0.4",
     "husky": "^3.0.5",
     "prettier": "^1.18.2",
     "rimraf": "^3.0.0",
@@ -48,7 +49,10 @@
     "webpack-cli": "^3.3.9"
   },
   "dependencies": {
+    "extend-objects-only": "^1.0.0",
     "mkdirp": "^0.5.1",
-    "vanilla-type-check": "^2.0.3"
+    "vanilla-type-check": "^2.0.3",
+    "winston": "^3.2.1",
+    "winston-transport": "^4.3.0"
   }
 }
