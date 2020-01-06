@@ -18,15 +18,23 @@ interface TurnBasedGamePlayerData {
 }
 
 export abstract class TurnBasedGameServer<IF extends MethodCollection> extends Server<IF> {
+  /** Default options to apply in the constructor */
   public static defaultOptions = {
     errorsBeforeKick: 3,
   };
+  /** List of current player IDs. Will be updated everytime a new client is connected/disconnected */
   protected readonly playerIds: string[] = [];
+  /** Logger used by the Server */
   protected readonly logger: TurnBasedServerLogger;
+  /** Number of players required before starting the game loop */
   private readonly nPlayersRequired: number;
+  /** Number of errors to allow before kicking a client */
   private readonly errorsBeforeKick: number;
+  /** Internal data of each player */
   private playerData: { [clientId: string]: TurnBasedGamePlayerData } = {};
+  /** Data of every player when the game starts (in case of any is disconnected) */
   private playerDataAtStart: { id: string; host: string; port: number }[] = [];
+  /** Used to calculate the next turn */
   private currentPlayerIndex: number = -1;
 
   constructor(options: TurnBasedGameServerOptions) {
