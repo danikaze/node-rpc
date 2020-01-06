@@ -1,5 +1,5 @@
 import { Client } from '../../utils/client';
-import { implementation } from '../../games/rogue/clients/player-1';
+import { implementation } from '../../games/rogue/clients/wanderer-pacifist';
 
 async function run(): Promise<void> {
   const client = new Client({
