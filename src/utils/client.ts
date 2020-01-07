@@ -102,12 +102,15 @@ export class Client<M extends MethodCollection> {
         }
 
         try {
-          const result = msg.params ? method(...msg.params) : method();
-          this.logger.rpcResponse(msg.method as string, result);
-          this.tx.send<MethodResponseMsg>({
-            result,
-            type: 'METHOD_RESULT',
-          });
+          const response = msg.params ? method(...msg.params) : method();
+          await (async () => {
+            const result = response instanceof Promise ? await response : response;
+            this.logger.rpcResponse(msg.method as string, result);
+            this.tx.send<MethodResponseMsg>({
+              result,
+              type: 'METHOD_RESULT',
+            });
+          })();
         } catch (error) {
           this.logger.rpcException(msg.method as string, error);
           this.tx.send<ErrorExceptionMsg<M>>({
