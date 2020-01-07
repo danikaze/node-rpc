@@ -30,12 +30,16 @@
     }
   },
   "devDependencies": {
+    "@types/blessed": "^0.1.16",
     "@types/mkdirp": "^0.5.2",
     "clean-webpack-plugin": "^3.0.0",
+    "copy-webpack-plugin": "^5.1.1",
     "git-revision-webpack-plugin": "^3.0.4",
     "husky": "^3.0.5",
+    "node-loader": "^0.6.0",
     "prettier": "^1.18.2",
     "rimraf": "^3.0.0",
+    "string-replace-loader": "^2.2.0",
     "ts-loader": "^6.1.0",
     "ts-node": "^8.4.1",
     "tsconfig-paths-webpack-plugin": "^3.2.0",
@@ -49,6 +53,7 @@
     "webpack-cli": "^3.3.9"
   },
   "dependencies": {
+    "blessed": "git+https://github.com/danikaze/blessed.git",
     "extend-objects-only": "^1.0.0",
     "mkdirp": "^0.5.1",
     "vanilla-type-check": "^2.0.3",
