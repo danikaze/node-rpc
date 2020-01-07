@@ -4,7 +4,7 @@ export interface MethodInterface extends MethodCollection {
   /** Initial information requested by the server */
   info: () => ClientInfo;
   /** Method called each turn */
-  turn: (info: TurnInfo) => PlayerAction;
+  turn: (info: TurnInfo) => PlayerAction | Promise<PlayerAction>;
   /** Information (ACK) from the server when the turn response is received */
   msg: (text: string, error?: ActionResultError) => null;
 }
