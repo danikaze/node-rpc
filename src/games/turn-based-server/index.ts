@@ -167,15 +167,16 @@ export abstract class TurnBasedGameServer<IF extends MethodCollection> extends S
     }
   }
 
+  /**
+   * Handle the error from a playerAction incoming from a client
+   */
   private async clientError(client: ClientData, error: Error): Promise<void> {
-    this.playerData[client.id].errors++;
-    this.logger.playerTurnError(
-      client.id,
-      error.toString(),
-      this.playerData[client.id].errors,
-      this.errorsBeforeKick
-    );
-    if (this.errorsBeforeKick <= 0 || this.playerData[client.id].errors < this.errorsBeforeKick) {
+    const player = this.playerData[client.id];
+    if (!player) return;
+
+    player.errors++;
+    this.logger.playerTurnError(client.id, error.toString(), player.errors, this.errorsBeforeKick);
+    if (this.errorsBeforeKick <= 0 || player.errors < this.errorsBeforeKick) {
       return;
     }
     await this.closeClient(client);
