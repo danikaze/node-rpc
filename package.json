@@ -53,9 +53,9 @@
     "webpack-cli": "^3.3.9"
   },
   "dependencies": {
-    "blessed": "git+https://github.com/danikaze/blessed.git",
     "extend-objects-only": "^1.0.0",
     "mkdirp": "^0.5.1",
+    "neo-blessed": "git+https://github.com/danikaze/neo-blessed.git",
     "vanilla-type-check": "^2.0.3",
     "winston": "^3.2.1",
     "winston-transport": "^4.3.0"

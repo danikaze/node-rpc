@@ -380,3 +380,5 @@ rules:
   no-implicit-dependencies:
     - true
     - dev
+    # blessed is used as an alias for neo-blessed to properly use @types/blessed
+    - - blessed
