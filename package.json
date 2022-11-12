@@ -46,7 +46,7 @@
     "tslint-microsoft-contrib": "^6.2.0",
     "typescript": "^3.6.3",
     "webpack": "^4.40.2",
-    "webpack-cli": "^3.3.9"
+    "webpack-cli": "^3.3.12"
   },
   "dependencies": {
     "extend-objects-only": "^1.0.0",
